@@ -6,7 +6,8 @@ import telebot
 from telebot import types
 
 # --- تنظیمات اولیه ربات ---
-TOKEN = "8879831216:AAE3V8ciNviyTws1hrGoNs00SRHI47sqHZE"
+TOKEN = "8879831216:AAF1Qs8S1Yaz_GkbNgIYrnkYQ31pJzqStCE"
+
 bot = telebot.TeleBot(TOKEN)
 
 # شناسه تاپیک‌های گروه تست شما
