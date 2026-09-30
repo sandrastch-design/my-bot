@@ -7,7 +7,6 @@ from telebot import types
 
 # --- تنظیمات اولیه ربات ---
 TOKEN = "8879831216:AAF1Qs8S1Yaz_GkbNgIYrnkYQ31pJzqStCE"
-
 bot = telebot.TeleBot(TOKEN)
 
 # شناسه تاپیک‌های گروه تست شما
@@ -683,8 +682,10 @@ def index():
 
 
 if __name__ == "__main__":
-  # حذف وب‌هوک قبلی و ست کردن پورت مناسب برای Render
+  # تنظیم خودکار وب‌هوک روی رندر
+  WEBHOOK_URL = f"https://my-bot-0jtw.onrender.com/{TOKEN}"
   bot.remove_webhook()
+  bot.set_webhook(url=WEBHOOK_URL)
+
   port = int(os.environ.get("PORT", 5000))
-  # توجه: در رندر وب‌هوک به صورت خودکار یا دستی ست می‌شود، اما اینجا سرور فلاسک بالا می‌آید
   app.run(host="0.0.0.0", port=port)
