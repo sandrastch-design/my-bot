@@ -24,7 +24,7 @@ EMOJI_TEXT = "💫✨"
 # مسیر فایل ذخیره تنظیمات و شمارنده چرخش خوش‌آمدگویی
 SETTINGS_FILE = "welcome_settings.json"
 
-# تنظیمات پیش‌فرضِ اولیه خوش‌‌آمدگویی
+# تنظیمات پیش‌فرضِ اولیه خوشآمدگویی
 DEFAULT_SETTINGS = {
     "welcome_active": True,
     "counter": 0,
@@ -85,7 +85,7 @@ GREETING_TEMPLATES = [
         "**`✦ ───────────────────────────────────────────── ✦`**\n"
         "**`  Hallo, schön dass du dabei bist, {name} ⚘!`**\n"
         "**`✦ ───────────────────────────────────────────── ✦`**\n\n"
-        "**_Zusammen macht Deutschلernen mehr Spaß. Trau dich und sprich"
+        "**_Zusammen macht Deutsch lernen mehr Spaß. Trau dich und sprich"
         " einfach mit. Wir freuen uns auf dich!_**"
     ),
 ]
@@ -344,7 +344,7 @@ def set_link_manually(message):
     pass
 
 
-# --- دستور افزودن دستی دکمه (نسخه مخفف: /addbtn) ---
+# --- دستور افزودن دستی دکمه (نسخه اصلاح‌شده با ویرایش مستقیم پیام کاربر: /addbtn) ---
 @bot.message_handler(
     func=lambda message: message.text
     and message.text.startswith("/addbtn")
@@ -369,14 +369,13 @@ def add_button_with_link(message):
       bot.edit_message_reply_markup(
           chat_id=chat_id, message_id=target_msg_id, reply_markup=back_markup
       )
-    except Exception:
-      pass
+    except Exception as e:
+      print(f"Error attaching back button: {e}")
   else:
     data = db_get(target_msg_id)
     if data:
-      _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link = data
+      _, _, k_link, g_link, v_link, ü_link = data
     else:
-      bot_emoji_msg_id = None
       k_link, g_link, v_link, ü_link = None, None, None, None
 
     if "korrektur" in button_type:
@@ -392,32 +391,17 @@ def add_button_with_link(message):
 
     markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link)
 
-    if bot_emoji_msg_id:
-      try:
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=bot_emoji_msg_id,
-            text=EMOJI_TEXT,
-            reply_markup=markup,
-        )
-      except Exception:
-        pass
-    else:
-      try:
-        sent_msg = bot.send_message(
-            chat_id=chat_id,
-            text=EMOJI_TEXT,
-            reply_markup=markup,
-            reply_to_message_id=target_msg_id,
-        )
-        bot_emoji_msg_id = sent_msg.message_id
-      except Exception:
-        pass
+    try:
+      bot.edit_message_reply_markup(
+          chat_id=chat_id, message_id=target_msg_id, reply_markup=markup
+      )
+    except Exception as e:
+      print(f"Error editing message markup: {e}")
 
     db_save(
         target_msg_id,
         chat_id,
-        bot_emoji_msg_id,
+        None,
         k_link,
         g_link,
         v_link,
