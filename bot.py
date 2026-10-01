@@ -280,8 +280,11 @@ def set_link_manually(message):
       back_markup.add(
           types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
       )
-      bot.edit_message_reply_markup(
-          chat_id=chat_id, message_id=target_msg_id, reply_markup=back_markup
+      bot.send_message(
+          chat_id=chat_id,
+          text="📌",
+          reply_markup=back_markup,
+          reply_to_message_id=target_msg_id,
       )
     except Exception:
       pass
@@ -344,7 +347,7 @@ def set_link_manually(message):
     pass
 
 
-# --- دستور افزودن دستی دکمه (نسخه اصلاح‌شده با ویرایش مستقیم پیام کاربر: /addbtn) ---
+# --- دستور افزودن دستی دکمه (نسخه اصلاح‌شده با ریپلای هدفمند: /addbtn) ---
 @bot.message_handler(
     func=lambda message: message.text
     and message.text.startswith("/addbtn")
@@ -360,22 +363,31 @@ def add_button_with_link(message):
   target_msg_id = message.reply_to_message.message_id
   chat_id = message.chat.id
 
+  # حالت اول: دکمه بازگشت عمومی (back) برای تاپیک‌ها
   if "back" in button_type:
     try:
       back_markup = types.InlineKeyboardMarkup()
       back_markup.add(
           types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
       )
-      bot.edit_message_reply_markup(
-          chat_id=chat_id, message_id=target_msg_id, reply_markup=back_markup
+      
+      # ارسال پیام دکمه بک به صورت ریپلای مستقیم زیر پیام هدف
+      bot.send_message(
+          chat_id=chat_id,
+          text="📌",
+          reply_markup=back_markup,
+          reply_to_message_id=target_msg_id,
       )
     except Exception as e:
-      print(f"Error attaching back button: {e}")
+      print(f"Error sending back button: {e}")
+
+  # حالت دوم: دکمه‌های چهارگانه اصلی (korrektur, grammatik, vokabel, übersetzung)
   else:
     data = db_get(target_msg_id)
     if data:
-      _, _, k_link, g_link, v_link, ü_link = data
+      _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link = data
     else:
+      bot_emoji_msg_id = None
       k_link, g_link, v_link, ü_link = None, None, None, None
 
     if "korrektur" in button_type:
@@ -391,23 +403,41 @@ def add_button_with_link(message):
 
     markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link)
 
-    try:
-      bot.edit_message_reply_markup(
-          chat_id=chat_id, message_id=target_msg_id, reply_markup=markup
-      )
-    except Exception as e:
-      print(f"Error editing message markup: {e}")
+    # اگر از قبل پیام ستاره‌ها زیر این پیام وجود داشته باشد، آن را ویرایش می‌کنیم
+    if bot_emoji_msg_id:
+      try:
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=bot_emoji_msg_id,
+            text=EMOJI_TEXT,
+            reply_markup=markup,
+        )
+      except Exception as e:
+        print(f"Error editing emoji message: {e}")
+    else:
+      # اگر وجود نداشته باشد، یک پیام جدید به صورت ریپلای دقیق زیر پیام هدف می‌سازیم
+      try:
+        sent_msg = bot.send_message(
+            chat_id=chat_id,
+            text=EMOJI_TEXT,
+            reply_markup=markup,
+            reply_to_message_id=target_msg_id,
+        )
+        bot_emoji_msg_id = sent_msg.message_id
+      except Exception as e:
+        print(f"Error sending emoji message: {e}")
 
     db_save(
         target_msg_id,
         chat_id,
-        None,
+        bot_emoji_msg_id,
         k_link,
         g_link,
         v_link,
         ü_link,
     )
 
+  # حذف دستور ادمین برای شلوغ نشدن چت
   try:
     bot.delete_message(chat_id, message.message_id)
   except Exception:
