@@ -24,7 +24,7 @@ EMOJI_TEXT = "💫✨"
 # مسیر فایل ذخیره تنظیمات و شمارنده چرخش خوش‌آمدگویی
 SETTINGS_FILE = "welcome_settings.json"
 
-# تنظیمات پیش‌فرضِ اولیه خوش‌‌‌‌آمدگویی
+# تنظیمات پیش‌فرضِ اولیه خوشآمدگویی
 DEFAULT_SETTINGS = {
     "welcome_active": True,
     "counter": 0,
@@ -78,14 +78,14 @@ GREETING_TEMPLATES = [
         "**`  Schön, dass du zu uns gefunden hast, {name} ⚘!`**\n"
         "**`✦ ──────────────────────────────────────────────── ✦`**\n\n"
         "**_Hier zählen nicht perfekte Sätze, sondern das Sprechen. Trau dich"
-        " einfach, sprich frei على Deutsch und lerne jeden Tag ein bisschen"
-        " mehr. Wir freuen uns على dich!_**"
+        " einfach, sprich frei auf Deutsch und lerne jeden Tag ein bisschen"
+        " mehr. Wir freuen uns auf dich!_**"
     ),
     (
         "**`✦ ───────────────────────────────────────────── ✦`**\n"
         "**`  Hallo, schön dass du dabei bist, {name} ⚘!`**\n"
         "**`✦ ───────────────────────────────────────────── ✦`**\n\n"
-        "**_Zusammen macht Deutschلernen mehr Spaß. Trau dich und sprich"
+        "**_Zusammen macht Deutsch lernen mehr Spaß. Trau dich und sprich"
         " einfach mit. Wir freuen uns auf dich!_**"
     ),
 ]
@@ -266,12 +266,11 @@ def handle_new_member(message):
 )
 def set_link_manually(message):
   parts = message.text.split()
-  if len(parts) < 3 or not message.reply_to_message:
+  if len(parts) < 3:
     return
 
   link_type = parts[1].lower()
   new_link = parts[2]
-  target_msg_id = message.reply_to_message.message_id
   chat_id = message.chat.id
 
   if link_type == "back":
@@ -280,12 +279,17 @@ def set_link_manually(message):
       back_markup.add(
           types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
       )
-      bot.edit_message_reply_markup(
-          chat_id=chat_id, message_id=target_msg_id, reply_markup=back_markup
+      # ارسال پیام مستقل برای دکمه بک به صورت مستقیم
+      bot.send_message(
+          chat_id=chat_id, text=EMOJI_TEXT, reply_markup=back_markup
       )
     except Exception:
       pass
   else:
+    if not message.reply_to_message:
+      return
+    target_msg_id = message.reply_to_message.message_id
+
     data = db_get(target_msg_id)
     if data:
       _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link = data
@@ -352,12 +356,11 @@ def set_link_manually(message):
 )
 def add_button_with_link(message):
   parts = message.text.split(maxsplit=2)
-  if len(parts) < 3 or not message.reply_to_message:
+  if len(parts) < 3:
     return
 
   button_type = parts[1].lower()
   new_link = parts[2]
-  target_msg_id = message.reply_to_message.message_id
   chat_id = message.chat.id
 
   if "back" in button_type:
@@ -366,12 +369,17 @@ def add_button_with_link(message):
       back_markup.add(
           types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
       )
-      bot.edit_message_reply_markup(
-          chat_id=chat_id, message_id=target_msg_id, reply_markup=back_markup
+      # ارسال پیام مستقل برای دکمه بک به صورت مستقیم
+      bot.send_message(
+          chat_id=chat_id, text=EMOJI_TEXT, reply_markup=back_markup
       )
     except Exception:
       pass
   else:
+    if not message.reply_to_message:
+      return
+    target_msg_id = message.reply_to_message.message_id
+
     data = db_get(target_msg_id)
     if data:
       _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link = data
