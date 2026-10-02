@@ -1,4 +1,4 @@
-import json
+Import json
 import os
 import re
 import sqlite3
@@ -24,7 +24,7 @@ EMOJI_TEXT = "💫✨"
 # مسیر فایل ذخیره تنظیمات و شمارنده چرخش خوش‌آمدگویی
 SETTINGS_FILE = "welcome_settings.json"
 
-# تنظیمات پیش‌فرضِ اولیه خوشآمدگویی
+# تنظیمات پیش‌فرضِ اولیه خوش‌‌‌‌آمدگویی
 DEFAULT_SETTINGS = {
     "welcome_active": True,
     "counter": 0,
@@ -78,14 +78,14 @@ GREETING_TEMPLATES = [
         "**`  Schön, dass du zu uns gefunden hast, {name} ⚘!`**\n"
         "**`✦ ──────────────────────────────────────────────── ✦`**\n\n"
         "**_Hier zählen nicht perfekte Sätze, sondern das Sprechen. Trau dich"
-        " einfach, sprich frei auf Deutsch und lerne jeden Tag ein bisschen"
-        " mehr. Wir freuen uns auf dich!_**"
+        " einfach, sprich frei على Deutsch und lerne jeden Tag ein bisschen"
+        " mehr. Wir freuen uns على dich!_**"
     ),
     (
         "**`✦ ───────────────────────────────────────────── ✦`**\n"
         "**`  Hallo, schön dass du dabei bist, {name} ⚘!`**\n"
         "**`✦ ───────────────────────────────────────────── ✦`**\n\n"
-        "**_Zusammen macht Deutsch lernen mehr Spaß. Trau dich und sprich"
+        "**_Zusammen macht Deutschلernen mehr Spaß. Trau dich und sprich"
         " einfach mit. Wir freuen uns auf dich!_**"
     ),
 ]
@@ -280,11 +280,8 @@ def set_link_manually(message):
       back_markup.add(
           types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
       )
-      bot.send_message(
-          chat_id=chat_id,
-          text="📌",
-          reply_markup=back_markup,
-          reply_to_message_id=target_msg_id,
+      bot.edit_message_reply_markup(
+          chat_id=chat_id, message_id=target_msg_id, reply_markup=back_markup
       )
     except Exception:
       pass
@@ -347,7 +344,7 @@ def set_link_manually(message):
     pass
 
 
-# --- دستور افزودن دستی دکمه (نسخه اصلاح‌شده با ریپلای هدفمند: /addbtn) ---
+# --- دستور افزودن دستی دکمه (نسخه مخفف: /addbtn) ---
 @bot.message_handler(
     func=lambda message: message.text
     and message.text.startswith("/addbtn")
@@ -363,25 +360,17 @@ def add_button_with_link(message):
   target_msg_id = message.reply_to_message.message_id
   chat_id = message.chat.id
 
-  # حالت اول: دکمه بازگشت عمومی (back) برای تاپیک‌ها
   if "back" in button_type:
     try:
       back_markup = types.InlineKeyboardMarkup()
       back_markup.add(
           types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
       )
-      
-      # ارسال پیام دکمه بک به صورت ریپلای مستقیم زیر پیام هدف
-      bot.send_message(
-          chat_id=chat_id,
-          text="📌",
-          reply_markup=back_markup,
-          reply_to_message_id=target_msg_id,
+      bot.edit_message_reply_markup(
+          chat_id=chat_id, message_id=target_msg_id, reply_markup=back_markup
       )
-    except Exception as e:
-      print(f"Error sending back button: {e}")
-
-  # حالت دوم: دکمه‌های چهارگانه اصلی (korrektur, grammatik, vokabel, übersetzung)
+    except Exception:
+      pass
   else:
     data = db_get(target_msg_id)
     if data:
@@ -403,7 +392,6 @@ def add_button_with_link(message):
 
     markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link)
 
-    # اگر از قبل پیام ستاره‌ها زیر این پیام وجود داشته باشد، آن را ویرایش می‌کنیم
     if bot_emoji_msg_id:
       try:
         bot.edit_message_text(
@@ -412,10 +400,9 @@ def add_button_with_link(message):
             text=EMOJI_TEXT,
             reply_markup=markup,
         )
-      except Exception as e:
-        print(f"Error editing emoji message: {e}")
+      except Exception:
+        pass
     else:
-      # اگر وجود نداشته باشد، یک پیام جدید به صورت ریپلای دقیق زیر پیام هدف می‌سازیم
       try:
         sent_msg = bot.send_message(
             chat_id=chat_id,
@@ -424,8 +411,8 @@ def add_button_with_link(message):
             reply_to_message_id=target_msg_id,
         )
         bot_emoji_msg_id = sent_msg.message_id
-      except Exception as e:
-        print(f"Error sending emoji message: {e}")
+      except Exception:
+        pass
 
     db_save(
         target_msg_id,
@@ -437,7 +424,6 @@ def add_button_with_link(message):
         ü_link,
     )
 
-  # حذف دستور ادمین برای شلوغ نشدن چت
   try:
     bot.delete_message(chat_id, message.message_id)
   except Exception:
