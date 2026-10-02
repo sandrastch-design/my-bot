@@ -62,7 +62,7 @@ GREETING_TEMPLATES = [
         "**`  Ein warmes Willkommen an dich, {name} ⚘!`**\n"
         "**`✦ ─────────────────────────────────────────── ✦`**\n\n"
         "**_Mach dir keinen Stress beim Lernen. Jeder Fehler hilft dir! "
-        "Nimm dir Zeit, lies mit und sprich einfach auf Deutsch mit uns. Wir"
+        "Nimm dir Zeit, lies mit und sprich einfach على Deutsch mit uns. Wir"
         " freuen uns auf dich!_**"
     ),
     (
@@ -272,6 +272,7 @@ def set_link_manually(message):
   link_type = parts[1].lower()
   new_link = parts[2]
   chat_id = message.chat.id
+  thread_id = getattr(message, "message_thread_id", None)
 
   if link_type == "back":
     try:
@@ -279,9 +280,12 @@ def set_link_manually(message):
       back_markup.add(
           types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
       )
-      # ارسال پیام مستقل برای دکمه بک به صورت مستقیم
+      # ارسال مستقیم به همراه تعیین دقیق تاپیک
       bot.send_message(
-          chat_id=chat_id, text=EMOJI_TEXT, reply_markup=back_markup
+          chat_id=chat_id,
+          text=EMOJI_TEXT,
+          reply_markup=back_markup,
+          message_thread_id=thread_id,
       )
     except Exception:
       pass
@@ -327,6 +331,7 @@ def set_link_manually(message):
             text=EMOJI_TEXT,
             reply_markup=markup,
             reply_to_message_id=target_msg_id,
+            message_thread_id=thread_id,
         )
         bot_emoji_msg_id = sent_msg.message_id
       except Exception:
@@ -362,6 +367,7 @@ def add_button_with_link(message):
   button_type = parts[1].lower()
   new_link = parts[2]
   chat_id = message.chat.id
+  thread_id = getattr(message, "message_thread_id", None)
 
   if "back" in button_type:
     try:
@@ -369,9 +375,12 @@ def add_button_with_link(message):
       back_markup.add(
           types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
       )
-      # ارسال پیام مستقل برای دکمه بک به صورت مستقیم
+      # ارسال مستقیم به همراه تعیین دقیق تاپیک
       bot.send_message(
-          chat_id=chat_id, text=EMOJI_TEXT, reply_markup=back_markup
+          chat_id=chat_id,
+          text=EMOJI_TEXT,
+          reply_markup=back_markup,
+          message_thread_id=thread_id,
       )
     except Exception:
       pass
@@ -417,6 +426,7 @@ def add_button_with_link(message):
             text=EMOJI_TEXT,
             reply_markup=markup,
             reply_to_message_id=target_msg_id,
+            message_thread_id=thread_id,
         )
         bot_emoji_msg_id = sent_msg.message_id
       except Exception:
@@ -550,6 +560,7 @@ def handle_messages(message):
                 text=EMOJI_TEXT,
                 reply_markup=markup,
                 reply_to_message_id=original_msg_id,
+                message_thread_id=thread_id,
             )
             bot_emoji_msg_id = sent_msg.message_id
           except Exception:
@@ -633,6 +644,7 @@ def handle_messages(message):
               text=EMOJI_TEXT,
               reply_markup=markup,
               reply_to_message_id=original_msg_id,
+              message_thread_id=thread_id,
           )
           bot_emoji_msg_id = data_sent_msg.message_id
         except Exception:
