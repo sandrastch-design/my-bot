@@ -62,7 +62,7 @@ GREETING_TEMPLATES = [
         "**`  Ein warmes Willkommen an dich, {name} ⚘!`**\n"
         "**`✦ ─────────────────────────────────────────── ✦`**\n\n"
         "**_Mach dir keinen Stress beim Lernen. Jeder Fehler hilft dir! "
-        "Nimm dir Zeit, lies mit und sprich einfach auf Deutsch mit uns. Wir"
+        "Nimm dir Zeit, lies mit und sprich einfach على Deutsch mit uns. Wir"
         " freuen uns auf dich!_**"
     ),
     (
@@ -280,6 +280,7 @@ def set_link_manually(message):
       back_markup.add(
           types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
       )
+      # ارسال مستقیم به همراه تعیین دقیق تاپیک
       bot.send_message(
           chat_id=chat_id,
           text=EMOJI_TEXT,
@@ -313,11 +314,6 @@ def set_link_manually(message):
 
     markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link)
 
-    # اگر نوع لینک ترجمه باشد، باید در چت اصلی (بدون thread_id) مدیریت شود
-    target_thread_id = (
-        None if link_type in ["übersetzung", "ubersetzung"] else thread_id
-    )
-
     if bot_emoji_msg_id:
       try:
         bot.edit_message_text(
@@ -335,7 +331,7 @@ def set_link_manually(message):
             text=EMOJI_TEXT,
             reply_markup=markup,
             reply_to_message_id=target_msg_id,
-            message_thread_id=target_thread_id,
+            message_thread_id=thread_id,
         )
         bot_emoji_msg_id = sent_msg.message_id
       except Exception:
@@ -379,6 +375,7 @@ def add_button_with_link(message):
       back_markup.add(
           types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
       )
+      # ارسال مستقیم به همراه تعیین دقیق تاپیک
       bot.send_message(
           chat_id=chat_id,
           text=EMOJI_TEXT,
@@ -399,25 +396,18 @@ def add_button_with_link(message):
       bot_emoji_msg_id = None
       k_link, g_link, v_link, ü_link = None, None, None, None
 
-    is_translation = (
-        "übersetzung" in button_type or "ubersetzung" in button_type
-    )
-
     if "korrektur" in button_type:
       k_link = new_link
     elif "grammatik" in button_type:
       g_link = new_link
     elif "vokabel" in button_type:
       v_link = new_link
-    elif is_translation:
+    elif "übersetzung" in button_type or "ubersetzung" in button_type:
       ü_link = new_link
     else:
       return
 
     markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link)
-
-    # دکمه‌های ترجمه باید در چت اصلی (بدون thread_id) ارسال/ویرایش شوند
-    target_thread_id = None if is_translation else thread_id
 
     if bot_emoji_msg_id:
       try:
@@ -436,7 +426,7 @@ def add_button_with_link(message):
             text=EMOJI_TEXT,
             reply_markup=markup,
             reply_to_message_id=target_msg_id,
-            message_thread_id=target_thread_id,
+            message_thread_id=thread_id,
         )
         bot_emoji_msg_id = sent_msg.message_id
       except Exception:
@@ -553,7 +543,6 @@ def handle_messages(message):
         ü_link = feedback_link
         markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link)
 
-        # ترجمه در چت اصلی (بدون thread_id) ارسال یا ویرایش می‌شود
         if bot_emoji_msg_id:
           try:
             bot.edit_message_text(
@@ -571,7 +560,7 @@ def handle_messages(message):
                 text=EMOJI_TEXT,
                 reply_markup=markup,
                 reply_to_message_id=original_msg_id,
-                message_thread_id=None,
+                message_thread_id=thread_id,
             )
             bot_emoji_msg_id = sent_msg.message_id
           except Exception:
