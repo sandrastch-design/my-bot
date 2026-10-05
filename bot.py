@@ -99,7 +99,8 @@ def init_db():
             korrektur_link TEXT,
             grammatik_link TEXT,
             vokabel_link TEXT,
-            übersetzung_link TEXT
+            übersetzung_link TEXT,
+            back_link TEXT
         )
     """)
   conn.commit()
@@ -112,10 +113,20 @@ init_db()
 def db_get(original_msg_id):
   conn = sqlite3.connect("bot_database.db")
   cursor = conn.cursor()
+  # بررسی وجود ستون back_link برای جلوگیری از خطای پایگاه داده‌های قدیمی
+  cursor.execute("PRAGMA table_info(feedbacks)")
+  columns = [col[1] for col in cursor.fetchall()]
+  if "back_link" not in columns:
+    try:
+      cursor.execute("ALTER TABLE feedbacks ADD COLUMN back_link TEXT")
+      conn.commit()
+    except Exception:
+      pass
+
   cursor.execute(
       "SELECT chat_id, bot_emoji_msg_id, korrektur_link, grammatik_link,"
-      " vokabel_link, übersetzung_link FROM feedbacks WHERE original_msg_id ="
-      " ?",
+      " vokabel_link, übersetzung_link, back_link FROM feedbacks WHERE"
+      " original_msg_id = ?",
       (original_msg_id,),
   )
   row = cursor.fetchone()
@@ -131,14 +142,15 @@ def db_save(
     grammatik_link,
     vokabel_link,
     übersetzung_link,
+    back_link,
 ):
   conn = sqlite3.connect("bot_database.db")
   cursor = conn.cursor()
   cursor.execute(
       """
         INSERT OR REPLACE INTO feedbacks 
-        (original_msg_id, chat_id, bot_emoji_msg_id, korrektur_link, grammatik_link, vokabel_link, übersetzung_link)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        (original_msg_id, chat_id, bot_emoji_msg_id, korrektur_link, grammatik_link, vokabel_link, übersetzung_link, back_link)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """,
       (
           original_msg_id,
@@ -148,6 +160,7 @@ def db_save(
           grammatik_link,
           vokabel_link,
           übersetzung_link,
+          back_link,
       ),
   )
   conn.commit()
@@ -159,10 +172,15 @@ def create_dynamic_keyboard(
     grammatik_link=None,
     vokabel_link=None,
     übersetzung_link=None,
+    back_link=None,
 ):
   markup = types.InlineKeyboardMarkup()
   buttons = []
 
+  if back_link:
+    buttons.append(
+        types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=back_link)
+    )
   if übersetzung_link:
     buttons.append(
         types.InlineKeyboardButton("📝 Übersetzung", url=übersetzung_link)
@@ -189,6 +207,9 @@ def create_dynamic_keyboard(
   elif count >= 4:
     markup.add(buttons[0], buttons[1])
     markup.add(buttons[2], buttons[3])
+    if count > 4:
+      for b in buttons[4:]:
+        markup.add(b)
 
   return markup
 
@@ -272,71 +293,48 @@ def set_link_manually(message):
 
   data = db_get(target_msg_id)
   if data:
-    _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link = data
+    _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link, b_link = data
   else:
     bot_emoji_msg_id = None
-    k_link, g_link, v_link, ü_link = None, None, None, None
+    k_link, g_link, v_link, ü_link, b_link = None, None, None, None, None
 
   if link_type == "back":
-    try:
-      back_markup = types.InlineKeyboardMarkup()
-      back_markup.add(
-          types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
-      )
+    b_link = new_link
+  elif link_type == "korrektur":
+    k_link = new_link
+  elif link_type == "grammatik":
+    g_link = new_link
+  elif link_type == "vokabel":
+    v_link = new_link
+  elif link_type in ["übersetzung", "ubersetzung"]:
+    ü_link = new_link
+  else:
+    return
 
-      if bot_emoji_msg_id:
-        bot.edit_message_reply_markup(
-            chat_id=chat_id,
-            message_id=bot_emoji_msg_id,
-            reply_markup=back_markup,
-        )
-      else:
-        sent_msg = bot.send_message(
-            chat_id=chat_id,
-            text=EMOJI_TEXT,
-            reply_markup=back_markup,
-            reply_to_message_id=target_msg_id,
-            message_thread_id=thread_id,
-        )
-        bot_emoji_msg_id = sent_msg.message_id
+  markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link, b_link)
+
+  if bot_emoji_msg_id:
+    try:
+      bot.edit_message_text(
+          chat_id=chat_id,
+          message_id=bot_emoji_msg_id,
+          text=EMOJI_TEXT,
+          reply_markup=markup,
+      )
     except Exception:
       pass
   else:
-    if link_type == "korrektur":
-      k_link = new_link
-    elif link_type == "grammatik":
-      g_link = new_link
-    elif link_type == "vokabel":
-      v_link = new_link
-    elif link_type in ["übersetzung", "ubersetzung"]:
-      ü_link = new_link
-    else:
-      return
-
-    markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link)
-
-    if bot_emoji_msg_id:
-      try:
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=bot_emoji_msg_id,
-            text=EMOJI_TEXT,
-            reply_markup=markup,
-        )
-      except Exception:
-        pass
-    else:
-      try:
-        sent_msg = bot.send_message(
-            chat_id=chat_id,
-            text=EMOJI_TEXT,
-            reply_markup=markup,
-            reply_to_message_id=target_msg_id,
-            message_thread_id=thread_id,
-        )
-        bot_emoji_msg_id = sent_msg.message_id
-      except Exception:
-        pass
+    try:
+      sent_msg = bot.send_message(
+          chat_id=chat_id,
+          text=EMOJI_TEXT,
+          reply_markup=markup,
+          reply_to_message_id=target_msg_id,
+          message_thread_id=thread_id,
+      )
+      bot_emoji_msg_id = sent_msg.message_id
+    except Exception:
+      pass
 
   db_save(
       target_msg_id,
@@ -346,6 +344,7 @@ def set_link_manually(message):
       g_link,
       v_link,
       ü_link,
+      b_link,
   )
 
   try:
@@ -369,77 +368,65 @@ def add_button_with_link(message):
   chat_id = message.chat.id
   thread_id = getattr(message, "message_thread_id", None)
 
+  if not message.reply_to_message:
+    return
+  target_msg_id = message.reply_to_message.message_id
+
+  data = db_get(target_msg_id)
+  if data:
+    _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link, b_link = data
+  else:
+    bot_emoji_msg_id = None
+    k_link, g_link, v_link, ü_link, b_link = None, None, None, None, None
+
   if "back" in button_type:
+    b_link = new_link
+  elif "korrektur" in button_type:
+    k_link = new_link
+  elif "grammatik" in button_type:
+    g_link = new_link
+  elif "vokabel" in button_type:
+    v_link = new_link
+  elif "übersetzung" in button_type or "ubersetzung" in button_type:
+    ü_link = new_link
+  else:
+    return
+
+  markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link, b_link)
+
+  if bot_emoji_msg_id:
     try:
-      back_markup = types.InlineKeyboardMarkup()
-      back_markup.add(
-          types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
-      )
-      bot.send_message(
+      bot.edit_message_text(
           chat_id=chat_id,
+          message_id=bot_emoji_msg_id,
           text=EMOJI_TEXT,
-          reply_markup=back_markup,
-          message_thread_id=thread_id,
+          reply_markup=markup,
       )
     except Exception:
       pass
   else:
-    if not message.reply_to_message:
-      return
-    target_msg_id = message.reply_to_message.message_id
+    try:
+      sent_msg = bot.send_message(
+          chat_id=chat_id,
+          text=EMOJI_TEXT,
+          reply_markup=markup,
+          reply_to_message_id=target_msg_id,
+          message_thread_id=thread_id,
+      )
+      bot_emoji_msg_id = sent_msg.message_id
+    except Exception:
+      pass
 
-    data = db_get(target_msg_id)
-    if data:
-      _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link = data
-    else:
-      bot_emoji_msg_id = None
-      k_link, g_link, v_link, ü_link = None, None, None, None
-
-    if "korrektur" in button_type:
-      k_link = new_link
-    elif "grammatik" in button_type:
-      g_link = new_link
-    elif "vokabel" in button_type:
-      v_link = new_link
-    elif "übersetzung" in button_type or "ubersetzung" in button_type:
-      ü_link = new_link
-    else:
-      return
-
-    markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link)
-
-    if bot_emoji_msg_id:
-      try:
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=bot_emoji_msg_id,
-            text=EMOJI_TEXT,
-            reply_markup=markup,
-        )
-      except Exception:
-        pass
-    else:
-      try:
-        sent_msg = bot.send_message(
-            chat_id=chat_id,
-            text=EMOJI_TEXT,
-            reply_markup=markup,
-            reply_to_message_id=target_msg_id,
-            message_thread_id=thread_id,
-        )
-        bot_emoji_msg_id = sent_msg.message_id
-      except Exception:
-        pass
-
-    db_save(
-        target_msg_id,
-        chat_id,
-        bot_emoji_msg_id,
-        k_link,
-        g_link,
-        v_link,
-        ü_link,
-    )
+  db_save(
+      target_msg_id,
+      chat_id,
+      bot_emoji_msg_id,
+      k_link,
+      g_link,
+      v_link,
+      ü_link,
+      b_link,
+  )
 
   try:
     bot.delete_message(chat_id, message.message_id)
@@ -465,9 +452,11 @@ def delete_button_handler(message):
   if not data:
     return
 
-  _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link = data
+  _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link, b_link = data
 
-  if "korrektur" in button_type:
+  if "back" in button_type:
+    b_link = None
+  elif "korrektur" in button_type:
     k_link = None
   elif "grammatik" in button_type:
     g_link = None
@@ -478,11 +467,11 @@ def delete_button_handler(message):
   else:
     return
 
-  markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link)
+  markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link, b_link)
 
   if bot_emoji_msg_id:
     try:
-      if not any([k_link, g_link, v_link, ü_link]):
+      if not any([k_link, g_link, v_link, ü_link, b_link]):
         bot.delete_message(chat_id, bot_emoji_msg_id)
         bot_emoji_msg_id = None
       else:
@@ -496,7 +485,14 @@ def delete_button_handler(message):
       pass
 
   db_save(
-      target_msg_id, chat_id, bot_emoji_msg_id, k_link, g_link, v_link, ü_link
+      target_msg_id,
+      chat_id,
+      bot_emoji_msg_id,
+      k_link,
+      g_link,
+      v_link,
+      ü_link,
+      b_link,
   )
 
   try:
@@ -531,13 +527,21 @@ def handle_messages(message):
 
         data = db_get(original_msg_id)
         if data:
-          _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link = data
+          _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link, b_link = data
         else:
           bot_emoji_msg_id = None
-          k_link, g_link, v_link, ü_link = None, None, None, None
+          k_link, g_link, v_link, ü_link, b_link = (
+              None,
+              None,
+              None,
+              None,
+              None,
+          )
 
         ü_link = feedback_link
-        markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link)
+        markup = create_dynamic_keyboard(
+            k_link, g_link, v_link, ü_link, b_link
+        )
 
         if bot_emoji_msg_id:
           try:
@@ -570,6 +574,7 @@ def handle_messages(message):
             g_link,
             v_link,
             ü_link,
+            b_link,
         )
 
         try:
@@ -578,17 +583,25 @@ def handle_messages(message):
               f"https://t.me/c/{original_chat_username}/{original_msg_id}"
           )
 
-          back_markup = types.InlineKeyboardMarkup()
-          back_markup.add(
-              types.InlineKeyboardButton(
-                  "⬅️ Deutsch sprechen", url=original_message_link
-              )
+          b_link = original_message_link
+          markup_with_back = create_dynamic_keyboard(
+              k_link, g_link, v_link, ü_link, b_link
           )
 
           bot.edit_message_reply_markup(
               chat_id=chat_id,
               message_id=message.reply_to_message.message_id,
-              reply_markup=back_markup,
+              reply_markup=markup_with_back,
+          )
+          db_save(
+              original_msg_id,
+              chat_id,
+              bot_emoji_msg_id,
+              k_link,
+              g_link,
+              v_link,
+              ü_link,
+              b_link,
           )
         except Exception:
           pass
@@ -608,10 +621,10 @@ def handle_messages(message):
 
       data = db_get(original_msg_id)
       if data:
-        _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link = data
+        _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link, b_link = data
       else:
         bot_emoji_msg_id = None
-        k_link, g_link, v_link, ü_link = None, None, None, None
+        k_link, g_link, v_link, ü_link, b_link = None, None, None, None, None
 
       if thread_id == TOPIC_KORREKTUR or message.forward_from_chat:
         k_link = feedback_link
@@ -620,7 +633,7 @@ def handle_messages(message):
       elif thread_id == TOPIC_VOKABEL:
         v_link = feedback_link
 
-      markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link)
+      markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link, b_link)
 
       if bot_emoji_msg_id:
         try:
@@ -653,6 +666,7 @@ def handle_messages(message):
           g_link,
           v_link,
           ü_link,
+          b_link,
       )
 
       try:
@@ -661,17 +675,25 @@ def handle_messages(message):
             f"https://t.me/c/{original_chat_username}/{original_msg_id}"
         )
 
-        back_markup = types.InlineKeyboardMarkup()
-        back_markup.add(
-            types.InlineKeyboardButton(
-                "⬅️ Deutsch sprechen", url=original_message_link
-            )
+        b_link = original_message_link
+        markup_with_back = create_dynamic_keyboard(
+            k_link, g_link, v_link, ü_link, b_link
         )
 
         bot.edit_message_reply_markup(
             chat_id=chat_id,
             message_id=message.message_id,
-            reply_markup=back_markup,
+            reply_markup=markup_with_back,
+        )
+        db_save(
+            original_msg_id,
+            chat_id,
+            bot_emoji_msg_id,
+            k_link,
+            g_link,
+            v_link,
+            ü_link,
+            b_link,
         )
       except Exception:
         pass
