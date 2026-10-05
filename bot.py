@@ -113,7 +113,6 @@ init_db()
 def db_get(original_msg_id):
   conn = sqlite3.connect("bot_database.db")
   cursor = conn.cursor()
-  # بررسی وجود ستون back_link برای جلوگیری از خطای پایگاه داده‌های قدیمی
   cursor.execute("PRAGMA table_info(feedbacks)")
   columns = [col[1] for col in cursor.fetchall()]
   if "back_link" not in columns:
@@ -179,7 +178,7 @@ def create_dynamic_keyboard(
 
   if back_link:
     buttons.append(
-        types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=back_link)
+        types.InlineKeyboardButton("⬅ Deutsch sprechen", url=back_link)
     )
   if übersetzung_link:
     buttons.append(
@@ -285,7 +284,6 @@ def set_link_manually(message):
   link_type = parts[1].lower()
   new_link = parts[2]
   chat_id = message.chat.id
-  thread_id = getattr(message, "message_thread_id", None)
 
   if not message.reply_to_message:
     return
@@ -315,24 +313,9 @@ def set_link_manually(message):
 
   if bot_emoji_msg_id:
     try:
-      bot.edit_message_text(
-          chat_id=chat_id,
-          message_id=bot_emoji_msg_id,
-          text=EMOJI_TEXT,
-          reply_markup=markup,
+      bot.edit_message_reply_markup(
+          chat_id=chat_id, message_id=bot_emoji_msg_id, reply_markup=markup
       )
-    except Exception:
-      pass
-  else:
-    try:
-      sent_msg = bot.send_message(
-          chat_id=chat_id,
-          text=EMOJI_TEXT,
-          reply_markup=markup,
-          reply_to_message_id=target_msg_id,
-          message_thread_id=thread_id,
-      )
-      bot_emoji_msg_id = sent_msg.message_id
     except Exception:
       pass
 
@@ -513,111 +496,21 @@ def handle_messages(message):
   ):
     return
 
-  if message.from_user.id in ADMIN_IDS:
-    chat_id = message.chat.id
-    thread_id = getattr(message, "message_thread_id", None)
+  chat_id = message.chat.id
+  thread_id = getattr(message, "message_thread_id", None)
 
-    if thread_id == TOPIC_ÜBERSETZUNG and message.reply_to_message:
-      match = re.search(r"t\.me/c/\d+/(?P<orig_id>\d+)", message.text or "")
-      if match:
-        original_msg_id = int(match.group("orig_id"))
-
-        chat_username_or_id = str(chat_id).replace("-100", "")
-        feedback_link = f"https://t.me/c/{chat_username_or_id}/{message.reply_to_message.message_id}"
-
-        data = db_get(original_msg_id)
-        if data:
-          _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link, b_link = data
-        else:
-          bot_emoji_msg_id = None
-          k_link, g_link, v_link, ü_link, b_link = (
-              None,
-              None,
-              None,
-              None,
-              None,
-          )
-
-        ü_link = feedback_link
-        markup = create_dynamic_keyboard(
-            k_link, g_link, v_link, ü_link, b_link
-        )
-
-        if bot_emoji_msg_id:
-          try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=bot_emoji_msg_id,
-                text=EMOJI_TEXT,
-                reply_markup=markup,
-            )
-          except Exception:
-            pass
-        else:
-          try:
-            sent_msg = bot.send_message(
-                chat_id=chat_id,
-                text=EMOJI_TEXT,
-                reply_markup=markup,
-                reply_to_message_id=original_msg_id,
-                message_thread_id=thread_id,
-            )
-            bot_emoji_msg_id = sent_msg.message_id
-          except Exception:
-            pass
-
-        db_save(
-            original_msg_id,
-            chat_id,
-            bot_emoji_msg_id,
-            k_link,
-            g_link,
-            v_link,
-            ü_link,
-            b_link,
-        )
-
-        try:
-          original_chat_username = str(chat_id).replace("-100", "")
-          original_message_link = (
-              f"https://t.me/c/{original_chat_username}/{original_msg_id}"
-          )
-
-          b_link = original_message_link
-          markup_with_back = create_dynamic_keyboard(
-              k_link, g_link, v_link, ü_link, b_link
-          )
-
-          bot.edit_message_reply_markup(
-              chat_id=chat_id,
-              message_id=message.reply_to_message.message_id,
-              reply_markup=markup_with_back,
-          )
-          db_save(
-              original_msg_id,
-              chat_id,
-              bot_emoji_msg_id,
-              k_link,
-              g_link,
-              v_link,
-              ü_link,
-              b_link,
-          )
-        except Exception:
-          pass
-
-        try:
-          bot.delete_message(chat_id, message.message_id)
-        except Exception:
-          pass
-        return
-
-    if message.reply_to_message:
-      original_msg = message.reply_to_message
-      original_msg_id = original_msg.message_id
+  # ترجمه در تاپیک ترجمه
+  if (
+      thread_id == TOPIC_ÜBERSETZUNG
+      and message.from_user.id in ADMIN_IDS
+      and message.reply_to_message
+  ):
+    match = re.search(r"t\.me/c/\d+/(?P<orig_id>\d+)", message.text or "")
+    if match:
+      original_msg_id = int(match.group("orig_id"))
 
       chat_username_or_id = str(chat_id).replace("-100", "")
-      feedback_link = f"https://t.me/c/{chat_username_or_id}/{message.message_id}"
+      feedback_link = f"https://t.me/c/{chat_username_or_id}/{message.reply_to_message.message_id}"
 
       data = db_get(original_msg_id)
       if data:
@@ -626,13 +519,7 @@ def handle_messages(message):
         bot_emoji_msg_id = None
         k_link, g_link, v_link, ü_link, b_link = None, None, None, None, None
 
-      if thread_id == TOPIC_KORREKTUR or message.forward_from_chat:
-        k_link = feedback_link
-      elif thread_id == TOPIC_GRAMMATIK:
-        g_link = feedback_link
-      elif thread_id == TOPIC_VOKABEL:
-        v_link = feedback_link
-
+      ü_link = feedback_link
       markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link, b_link)
 
       if bot_emoji_msg_id:
@@ -647,14 +534,14 @@ def handle_messages(message):
           pass
       else:
         try:
-          data_sent_msg = bot.send_message(
+          sent_msg = bot.send_message(
               chat_id=chat_id,
               text=EMOJI_TEXT,
               reply_markup=markup,
               reply_to_message_id=original_msg_id,
               message_thread_id=thread_id,
           )
-          bot_emoji_msg_id = data_sent_msg.message_id
+          bot_emoji_msg_id = sent_msg.message_id
         except Exception:
           pass
 
@@ -682,7 +569,7 @@ def handle_messages(message):
 
         bot.edit_message_reply_markup(
             chat_id=chat_id,
-            message_id=message.message_id,
+            message_id=message.reply_to_message.message_id,
             reply_markup=markup_with_back,
         )
         db_save(
@@ -697,6 +584,98 @@ def handle_messages(message):
         )
       except Exception:
         pass
+
+      try:
+        bot.delete_message(chat_id, message.message_id)
+      except Exception:
+        pass
+      return
+
+  # فیدبک‌های معمولی در تاپیک‌های دیگر (تصحیح، گرامر، واژگان)
+  if (
+      message.reply_to_message
+      and message.from_user.id in ADMIN_IDS
+      and thread_id
+      in [
+          TOPIC_KORREKTUR,
+          TOPIC_GRAMMATIK,
+          TOPIC_VOKABEL,
+      ]
+  ):
+    original_msg = message.reply_to_message
+    original_msg_id = original_msg.message_id
+
+    chat_username_or_id = str(chat_id).replace("-100", "")
+    feedback_link = f"https://t.me/c/{chat_username_or_id}/{message.message_id}"
+
+    data = db_get(original_msg_id)
+    if data:
+      _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link, b_link = data
+    else:
+      bot_emoji_msg_id = None
+      k_link, g_link, v_link, ü_link, b_link = None, None, None, None, None
+
+    if thread_id == TOPIC_KORREKTUR or message.forward_from_chat:
+      k_link = feedback_link
+    elif thread_id == TOPIC_GRAMMATIK:
+      g_link = feedback_link
+    elif thread_id == TOPIC_VOKABEL:
+      v_link = feedback_link
+
+    markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link, b_link)
+
+    if bot_emoji_msg_id:
+      try:
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=bot_emoji_msg_id,
+            text=EMOJI_TEXT,
+            reply_markup=markup,
+        )
+      except Exception:
+        pass
+    else:
+      try:
+        data_sent_msg = bot.send_message(
+            chat_id=chat_id,
+            text=EMOJI_TEXT,
+            reply_markup=markup,
+            reply_to_message_id=original_msg_id,
+            message_thread_id=thread_id,
+        )
+        bot_emoji_msg_id = data_sent_msg.message_id
+      except Exception:
+        pass
+
+    original_chat_username = str(chat_id).replace("-100", "")
+    original_message_link = (
+        f"https://t.me/c/{original_chat_username}/{original_msg_id}"
+    )
+    b_link = original_message_link
+
+    markup_with_back = create_dynamic_keyboard(
+        k_link, g_link, v_link, ü_link, b_link
+    )
+
+    db_save(
+        original_msg_id,
+        chat_id,
+        bot_emoji_msg_id,
+        k_link,
+        g_link,
+        v_link,
+        ü_link,
+        b_link,
+    )
+
+    try:
+      bot.edit_message_reply_markup(
+          chat_id=chat_id,
+          message_id=message.message_id,
+          reply_markup=markup_with_back,
+      )
+    except Exception:
+      pass
 
 
 from flask import Flask, request
