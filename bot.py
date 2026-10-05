@@ -10,12 +10,12 @@ TOKEN = "8879831216:AAF1Qs8S1Yaz_GkbNgIYrnkYQ31pJzqStCE"
 bot = telebot.TeleBot(TOKEN)
 
 # شناسه تاپیک‌های گروه تست شما
-TOPIC_KORREKTUR = 191
-TOPIC_GRAMMATIK = 188
-TOPIC_VOKABEL = 189
-TOPIC_ÜBERSETZUNG = 334
+TOPIC_KORREKTUR = 191  # شناسه تاپیک کرکتور
+TOPIC_GRAMMATIK = 188  # شناسه تاپیک گرامر
+TOPIC_VOKABEL = 189  # شناسه تاپیک لغت
+TOPIC_ÜBERSETZUNG = 334  # شناسه تاپیک ترجمه
 
-# لیست آیدی‌های ادمین‌ها
+# لیست آیدی‌های ادمین‌ها (شناسه عددی تلگرام شما)
 ADMIN_IDS = [103743272]
 
 # متن پیام ربات شامل ایموجی‌ها
@@ -24,12 +24,14 @@ EMOJI_TEXT = "💫✨"
 # مسیر فایل ذخیره تنظیمات و شمارنده چرخش خوش‌آمدگویی
 SETTINGS_FILE = "welcome_settings.json"
 
+# تنظیمات پیش‌فرضِ اولیه خوشآمدگویی
 DEFAULT_SETTINGS = {
     "welcome_active": True,
     "counter": 0,
 }
 
 
+# --- توابع مربوط به تنظیمات خوش‌آمدگویی ---
 def load_settings():
   if not os.path.exists(SETTINGS_FILE):
     save_settings(DEFAULT_SETTINGS)
@@ -45,6 +47,7 @@ def save_settings(settings):
     json.dump(settings, f, ensure_ascii=False, indent=4)
 
 
+# متن‌های خوش‌آمدگویی
 GREETING_TEMPLATES = [
     (
         "**`✦ ──────────────────────────────────────────────────────── ✦`**\n"
@@ -88,6 +91,7 @@ GREETING_TEMPLATES = [
 ]
 
 
+# --- راه‌اندازی دیتابیس SQLite برای مدیریت فیدبک‌ها ---
 def init_db():
   conn = sqlite3.connect("bot_database.db")
   cursor = conn.cursor()
@@ -113,15 +117,6 @@ init_db()
 def db_get(original_msg_id):
   conn = sqlite3.connect("bot_database.db")
   cursor = conn.cursor()
-  cursor.execute("PRAGMA table_info(feedbacks)")
-  columns = [col[1] for col in cursor.fetchall()]
-  if "back_link" not in columns:
-    try:
-      cursor.execute("ALTER TABLE feedbacks ADD COLUMN back_link TEXT")
-      conn.commit()
-    except Exception:
-      pass
-
   cursor.execute(
       "SELECT chat_id, bot_emoji_msg_id, korrektur_link, grammatik_link,"
       " vokabel_link, übersetzung_link, back_link FROM feedbacks WHERE"
@@ -166,6 +161,7 @@ def db_save(
   conn.close()
 
 
+# تابع ساخت کیبورد هوشمند فیدبک‌ها
 def create_dynamic_keyboard(
     korrektur_link=None,
     grammatik_link=None,
@@ -176,10 +172,6 @@ def create_dynamic_keyboard(
   markup = types.InlineKeyboardMarkup()
   buttons = []
 
-  if back_link:
-    buttons.append(
-        types.InlineKeyboardButton("⬅ Deutsch sprechen", url=back_link)
-    )
   if übersetzung_link:
     buttons.append(
         types.InlineKeyboardButton("📝 Übersetzung", url=übersetzung_link)
@@ -206,13 +198,15 @@ def create_dynamic_keyboard(
   elif count >= 4:
     markup.add(buttons[0], buttons[1])
     markup.add(buttons[2], buttons[3])
-    if count > 4:
-      for b in buttons[4:]:
-        markup.add(b)
+
+  # اضافه کردن دکمه بک در صورت وجود لینک
+  if back_link:
+    markup.add(types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=back_link))
 
   return markup
 
 
+# --- دستور کنترل خوش‌آمدگویی (/welcome) ---
 @bot.message_handler(commands=["welcome"])
 def handle_welcome_command(message):
   args = message.text.split()
@@ -245,6 +239,7 @@ def handle_welcome_command(message):
   )
 
 
+# --- هندلر ورود عضو جدید به گروه ---
 @bot.message_handler(content_types=["new_chat_members"])
 def handle_new_member(message):
   settings = load_settings()
@@ -271,6 +266,7 @@ def handle_new_member(message):
     save_settings(settings)
 
 
+# --- دستور دستی ست کردن لینک‌ها (/setlink) ---
 @bot.message_handler(
     func=lambda message: message.text
     and message.text.startswith("/setlink")
@@ -282,71 +278,6 @@ def set_link_manually(message):
     return
 
   link_type = parts[1].lower()
-  new_link = parts[2]
-  chat_id = message.chat.id
-
-  if not message.reply_to_message:
-    return
-  target_msg_id = message.reply_to_message.message_id
-
-  data = db_get(target_msg_id)
-  if data:
-    _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link, b_link = data
-  else:
-    bot_emoji_msg_id = None
-    k_link, g_link, v_link, ü_link, b_link = None, None, None, None, None
-
-  if link_type == "back":
-    b_link = new_link
-  elif link_type == "korrektur":
-    k_link = new_link
-  elif link_type == "grammatik":
-    g_link = new_link
-  elif link_type == "vokabel":
-    v_link = new_link
-  elif link_type in ["übersetzung", "ubersetzung"]:
-    ü_link = new_link
-  else:
-    return
-
-  markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link, b_link)
-
-  if bot_emoji_msg_id:
-    try:
-      bot.edit_message_reply_markup(
-          chat_id=chat_id, message_id=bot_emoji_msg_id, reply_markup=markup
-      )
-    except Exception:
-      pass
-
-  db_save(
-      target_msg_id,
-      chat_id,
-      bot_emoji_msg_id,
-      k_link,
-      g_link,
-      v_link,
-      ü_link,
-      b_link,
-  )
-
-  try:
-    bot.delete_message(chat_id, message.message_id)
-  except Exception:
-    pass
-
-
-@bot.message_handler(
-    func=lambda message: message.text
-    and message.text.startswith("/addbtn")
-    and message.from_user.id in ADMIN_IDS
-)
-def add_button_with_link(message):
-  parts = message.text.split(maxsplit=2)
-  if len(parts) < 3:
-    return
-
-  button_type = parts[1].lower()
   new_link = parts[2]
   chat_id = message.chat.id
   thread_id = getattr(message, "message_thread_id", None)
@@ -362,16 +293,16 @@ def add_button_with_link(message):
     bot_emoji_msg_id = None
     k_link, g_link, v_link, ü_link, b_link = None, None, None, None, None
 
-  if "back" in button_type:
-    b_link = new_link
-  elif "korrektur" in button_type:
+  if link_type == "korrektur":
     k_link = new_link
-  elif "grammatik" in button_type:
+  elif link_type == "grammatik":
     g_link = new_link
-  elif "vokabel" in button_type:
+  elif link_type == "vokabel":
     v_link = new_link
-  elif "übersetzung" in button_type or "ubersetzung" in button_type:
+  elif link_type in ["übersetzung", "ubersetzung"]:
     ü_link = new_link
+  elif link_type == "back":
+    b_link = new_link
   else:
     return
 
@@ -417,6 +348,102 @@ def add_button_with_link(message):
     pass
 
 
+# --- دستور افزودن دستی دکمه (نسخه مخفف: /addbtn) ---
+@bot.message_handler(
+    func=lambda message: message.text
+    and message.text.startswith("/addbtn")
+    and message.from_user.id in ADMIN_IDS
+)
+def add_button_with_link(message):
+  parts = message.text.split(maxsplit=2)
+  if len(parts) < 3:
+    return
+
+  button_type = parts[1].lower()
+  new_link = parts[2]
+  chat_id = message.chat.id
+  thread_id = getattr(message, "message_thread_id", None)
+
+  if "back" in button_type:
+    try:
+      back_markup = types.InlineKeyboardMarkup()
+      back_markup.add(
+          types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
+      )
+      bot.send_message(
+          chat_id=chat_id,
+          text=EMOJI_TEXT,
+          reply_markup=back_markup,
+          message_thread_id=thread_id,
+      )
+    except Exception:
+      pass
+  else:
+    if not message.reply_to_message:
+      return
+    target_msg_id = message.reply_to_message.message_id
+
+    data = db_get(target_msg_id)
+    if data:
+      _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link, b_link = data
+    else:
+      bot_emoji_msg_id = None
+      k_link, g_link, v_link, ü_link, b_link = None, None, None, None, None
+
+    if "korrektur" in button_type:
+      k_link = new_link
+    elif "grammatik" in button_type:
+      g_link = new_link
+    elif "vokabel" in button_type:
+      v_link = new_link
+    elif "übersetzung" in button_type or "ubersetzung" in button_type:
+      ü_link = new_link
+    else:
+      return
+
+    markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link, b_link)
+
+    if bot_emoji_msg_id:
+      try:
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=bot_emoji_msg_id,
+            text=EMOJI_TEXT,
+            reply_markup=markup,
+        )
+      except Exception:
+        pass
+    else:
+      try:
+        sent_msg = bot.send_message(
+            chat_id=chat_id,
+            text=EMOJI_TEXT,
+            reply_markup=markup,
+            reply_to_message_id=target_msg_id,
+            message_thread_id=thread_id,
+        )
+        bot_emoji_msg_id = sent_msg.message_id
+      except Exception:
+        pass
+
+    db_save(
+        target_msg_id,
+        chat_id,
+        bot_emoji_msg_id,
+        k_link,
+        g_link,
+        v_link,
+        ü_link,
+        b_link,
+    )
+
+  try:
+    bot.delete_message(chat_id, message.message_id)
+  except Exception:
+    pass
+
+
+# --- دستور جدید حذف دکمه (نسخه مخفف: /delbtn) ---
 @bot.message_handler(
     func=lambda message: message.text
     and message.text.startswith("/delbtn")
@@ -437,9 +464,7 @@ def delete_button_handler(message):
 
   _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link, b_link = data
 
-  if "back" in button_type:
-    b_link = None
-  elif "korrektur" in button_type:
+  if "korrektur" in button_type:
     k_link = None
   elif "grammatik" in button_type:
     g_link = None
@@ -447,6 +472,8 @@ def delete_button_handler(message):
     v_link = None
   elif "übersetzung" in button_type or "ubersetzung" in button_type:
     ü_link = None
+  elif "back" in button_type:
+    b_link = None
   else:
     return
 
@@ -484,6 +511,7 @@ def delete_button_handler(message):
     pass
 
 
+# --- هندلر کلی پیام‌های گروه برای فیدبک‌‌خوانی ---
 @bot.message_handler(
     func=lambda message: True,
     content_types=["text", "audio", "voice", "document", "photo"],
@@ -496,21 +524,99 @@ def handle_messages(message):
   ):
     return
 
-  chat_id = message.chat.id
-  thread_id = getattr(message, "message_thread_id", None)
+  if message.from_user.id in ADMIN_IDS:
+    chat_id = message.chat.id
+    thread_id = getattr(message, "message_thread_id", None)
 
-  # ترجمه در تاپیک ترجمه
-  if (
-      thread_id == TOPIC_ÜBERSETZUNG
-      and message.from_user.id in ADMIN_IDS
-      and message.reply_to_message
-  ):
-    match = re.search(r"t\.me/c/\d+/(?P<orig_id>\d+)", message.text or "")
-    if match:
-      original_msg_id = int(match.group("orig_id"))
+    # حالت اول: پیام در تاپیک Übersetzung
+    if thread_id == TOPIC_ÜBERSETZUNG and message.reply_to_message:
+      match = re.search(r"t\.me/c/\d+/(?P<orig_id>\d+)", message.text or "")
+      if match:
+        original_msg_id = int(match.group("orig_id"))
+
+        chat_username_or_id = str(chat_id).replace("-100", "")
+        feedback_link = f"https://t.me/c/{chat_username_or_id}/{message.reply_to_message.message_id}"
+
+        data = db_get(original_msg_id)
+        if data:
+          _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link, b_link = data
+        else:
+          bot_emoji_msg_id = None
+          k_link, g_link, v_link, ü_link, b_link = None, None, None, None, None
+
+        ü_link = feedback_link
+        markup = create_dynamic_keyboard(
+            k_link, g_link, v_link, ü_link, b_link
+        )
+
+        if bot_emoji_msg_id:
+          try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=bot_emoji_msg_id,
+                text=EMOJI_TEXT,
+                reply_markup=markup,
+            )
+          except Exception:
+            pass
+        else:
+          try:
+            sent_msg = bot.send_message(
+                chat_id=chat_id,
+                text=EMOJI_TEXT,
+                reply_markup=markup,
+                reply_to_message_id=original_msg_id,
+                message_thread_id=thread_id,
+            )
+            bot_emoji_msg_id = sent_msg.message_id
+          except Exception:
+            pass
+
+        db_save(
+            original_msg_id,
+            chat_id,
+            bot_emoji_msg_id,
+            k_link,
+            g_link,
+            v_link,
+            ü_link,
+            b_link,
+        )
+
+        try:
+          original_chat_username = str(chat_id).replace("-100", "")
+          original_message_link = (
+              f"https://t.me/c/{original_chat_username}/{original_msg_id}"
+          )
+
+          back_markup = types.InlineKeyboardMarkup()
+          back_markup.add(
+              types.InlineKeyboardButton(
+                  "⬅️ Deutsch sprechen", url=original_message_link
+              )
+          )
+
+          bot.edit_message_reply_markup(
+              chat_id=chat_id,
+              message_id=message.reply_to_message.message_id,
+              reply_markup=back_markup,
+          )
+        except Exception:
+          pass
+
+        try:
+          bot.delete_message(chat_id, message.message_id)
+        except Exception:
+          pass
+        return
+
+    # حالت دوم: پیام در سایر تاپیک‌ها
+    if message.reply_to_message:
+      original_msg = message.reply_to_message
+      original_msg_id = original_msg.message_id
 
       chat_username_or_id = str(chat_id).replace("-100", "")
-      feedback_link = f"https://t.me/c/{chat_username_or_id}/{message.reply_to_message.message_id}"
+      feedback_link = f"https://t.me/c/{chat_username_or_id}/{message.message_id}"
 
       data = db_get(original_msg_id)
       if data:
@@ -519,7 +625,13 @@ def handle_messages(message):
         bot_emoji_msg_id = None
         k_link, g_link, v_link, ü_link, b_link = None, None, None, None, None
 
-      ü_link = feedback_link
+      if thread_id == TOPIC_KORREKTUR or message.forward_from_chat:
+        k_link = feedback_link
+      elif thread_id == TOPIC_GRAMMATIK:
+        g_link = feedback_link
+      elif thread_id == TOPIC_VOKABEL:
+        v_link = feedback_link
+
       markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link, b_link)
 
       if bot_emoji_msg_id:
@@ -534,14 +646,14 @@ def handle_messages(message):
           pass
       else:
         try:
-          sent_msg = bot.send_message(
+          data_sent_msg = bot.send_message(
               chat_id=chat_id,
               text=EMOJI_TEXT,
               reply_markup=markup,
               reply_to_message_id=original_msg_id,
               message_thread_id=thread_id,
           )
-          bot_emoji_msg_id = sent_msg.message_id
+          bot_emoji_msg_id = data_sent_msg.message_id
         except Exception:
           pass
 
@@ -562,122 +674,23 @@ def handle_messages(message):
             f"https://t.me/c/{original_chat_username}/{original_msg_id}"
         )
 
-        b_link = original_message_link
-        markup_with_back = create_dynamic_keyboard(
-            k_link, g_link, v_link, ü_link, b_link
+        back_markup = types.InlineKeyboardMarkup()
+        back_markup.add(
+            types.InlineKeyboardButton(
+                "⬅️ Deutsch sprechen", url=original_message_link
+            )
         )
 
         bot.edit_message_reply_markup(
             chat_id=chat_id,
-            message_id=message.reply_to_message.message_id,
-            reply_markup=markup_with_back,
-        )
-        db_save(
-            original_msg_id,
-            chat_id,
-            bot_emoji_msg_id,
-            k_link,
-            g_link,
-            v_link,
-            ü_link,
-            b_link,
+            message_id=message.message_id,
+            reply_markup=back_markup,
         )
       except Exception:
         pass
 
-      try:
-        bot.delete_message(chat_id, message.message_id)
-      except Exception:
-        pass
-      return
 
-  # فیدبک‌های معمولی در تاپیک‌های دیگر (تصحیح، گرامر، واژگان)
-  if (
-      message.reply_to_message
-      and message.from_user.id in ADMIN_IDS
-      and thread_id
-      in [
-          TOPIC_KORREKTUR,
-          TOPIC_GRAMMATIK,
-          TOPIC_VOKABEL,
-      ]
-  ):
-    original_msg = message.reply_to_message
-    original_msg_id = original_msg.message_id
-
-    chat_username_or_id = str(chat_id).replace("-100", "")
-    feedback_link = f"https://t.me/c/{chat_username_or_id}/{message.message_id}"
-
-    data = db_get(original_msg_id)
-    if data:
-      _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link, b_link = data
-    else:
-      bot_emoji_msg_id = None
-      k_link, g_link, v_link, ü_link, b_link = None, None, None, None, None
-
-    if thread_id == TOPIC_KORREKTUR or message.forward_from_chat:
-      k_link = feedback_link
-    elif thread_id == TOPIC_GRAMMATIK:
-      g_link = feedback_link
-    elif thread_id == TOPIC_VOKABEL:
-      v_link = feedback_link
-
-    markup = create_dynamic_keyboard(k_link, g_link, v_link, ü_link, b_link)
-
-    if bot_emoji_msg_id:
-      try:
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=bot_emoji_msg_id,
-            text=EMOJI_TEXT,
-            reply_markup=markup,
-        )
-      except Exception:
-        pass
-    else:
-      try:
-        data_sent_msg = bot.send_message(
-            chat_id=chat_id,
-            text=EMOJI_TEXT,
-            reply_markup=markup,
-            reply_to_message_id=original_msg_id,
-            message_thread_id=thread_id,
-        )
-        bot_emoji_msg_id = data_sent_msg.message_id
-      except Exception:
-        pass
-
-    original_chat_username = str(chat_id).replace("-100", "")
-    original_message_link = (
-        f"https://t.me/c/{original_chat_username}/{original_msg_id}"
-    )
-    b_link = original_message_link
-
-    markup_with_back = create_dynamic_keyboard(
-        k_link, g_link, v_link, ü_link, b_link
-    )
-
-    db_save(
-        original_msg_id,
-        chat_id,
-        bot_emoji_msg_id,
-        k_link,
-        g_link,
-        v_link,
-        ü_link,
-        b_link,
-    )
-
-    try:
-      bot.edit_message_reply_markup(
-          chat_id=chat_id,
-          message_id=message.message_id,
-          reply_markup=markup_with_back,
-      )
-    except Exception:
-      pass
-
-
+# --- راه‌اندازی برای هاست ابری (Webhook) ---
 from flask import Flask, request
 
 app = Flask(__name__)
@@ -697,6 +710,7 @@ def index():
 
 
 if __name__ == "__main__":
+  # تنظیم خودکار وب‌هوک روی رندر
   WEBHOOK_URL = f"https://my-bot-0jtw.onrender.com/{TOKEN}"
   bot.remove_webhook()
   bot.set_webhook(url=WEBHOOK_URL)
