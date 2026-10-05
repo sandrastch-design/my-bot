@@ -10,12 +10,12 @@ TOKEN = "8879831216:AAF1Qs8S1Yaz_GkbNgIYrnkYQ31pJzqStCE"
 bot = telebot.TeleBot(TOKEN)
 
 # شناسه تاپیک‌های گروه تست شما
-TOPIC_KORREKTUR = 191  # شناسه تاپیک کرکتور
-TOPIC_GRAMMATIK = 188  # شناسه تاپیک گرامر
-TOPIC_VOKABEL = 189  # شناسه تاپیک لغت
-TOPIC_ÜBERSETZUNG = 334  # شناسه تاپیک ترجمه
+TOPIC_KORREKTUR = 191
+TOPIC_GRAMMATIK = 188
+TOPIC_VOKABEL = 189
+TOPIC_ÜBERSETZUNG = 334
 
-# لیست آیدی‌های ادمین‌ها (شناسه عددی تلگرام شما)
+# لیست آیدی‌های ادمین‌ها
 ADMIN_IDS = [103743272]
 
 # متن پیام ربات شامل ایموجی‌ها
@@ -24,14 +24,12 @@ EMOJI_TEXT = "💫✨"
 # مسیر فایل ذخیره تنظیمات و شمارنده چرخش خوش‌آمدگویی
 SETTINGS_FILE = "welcome_settings.json"
 
-# تنظیمات پیش‌فرضِ اولیه خوشآمدگویی
 DEFAULT_SETTINGS = {
     "welcome_active": True,
     "counter": 0,
 }
 
 
-# --- توابع مربوط به تنظیمات خوش‌آمدگویی ---
 def load_settings():
   if not os.path.exists(SETTINGS_FILE):
     save_settings(DEFAULT_SETTINGS)
@@ -47,7 +45,6 @@ def save_settings(settings):
     json.dump(settings, f, ensure_ascii=False, indent=4)
 
 
-# متن‌های خوش‌آمدگویی
 GREETING_TEMPLATES = [
     (
         "**`✦ ──────────────────────────────────────────────────────── ✦`**\n"
@@ -91,7 +88,6 @@ GREETING_TEMPLATES = [
 ]
 
 
-# --- راه‌اندازی دیتابیس SQLite برای مدیریت فیدبک‌ها ---
 def init_db():
   conn = sqlite3.connect("bot_database.db")
   cursor = conn.cursor()
@@ -158,7 +154,6 @@ def db_save(
   conn.close()
 
 
-# تابع ساخت کیبورد هوشمند فیدبک‌ها
 def create_dynamic_keyboard(
     korrektur_link=None,
     grammatik_link=None,
@@ -198,7 +193,6 @@ def create_dynamic_keyboard(
   return markup
 
 
-# --- دستور کنترل خوش‌آمدگویی (/welcome) ---
 @bot.message_handler(commands=["welcome"])
 def handle_welcome_command(message):
   args = message.text.split()
@@ -231,7 +225,6 @@ def handle_welcome_command(message):
   )
 
 
-# --- هندلر ورود عضو جدید به گروه ---
 @bot.message_handler(content_types=["new_chat_members"])
 def handle_new_member(message):
   settings = load_settings()
@@ -258,7 +251,6 @@ def handle_new_member(message):
     save_settings(settings)
 
 
-# --- دستور دستی ست کردن لینک‌ها (/setlink اصلاح‌شده) ---
 @bot.message_handler(
     func=lambda message: message.text
     and message.text.startswith("/setlink")
@@ -362,7 +354,6 @@ def set_link_manually(message):
     pass
 
 
-# --- دستور افزودن دستی دکمه (نسخه مخفف: /addbtn) ---
 @bot.message_handler(
     func=lambda message: message.text
     and message.text.startswith("/addbtn")
@@ -456,7 +447,6 @@ def add_button_with_link(message):
     pass
 
 
-# --- دستور حذف دکمه (/delbtn) ---
 @bot.message_handler(
     func=lambda message: message.text
     and message.text.startswith("/delbtn")
@@ -515,7 +505,6 @@ def delete_button_handler(message):
     pass
 
 
-# --- هندلر کلی پیام‌های گروه برای فیدبک‌‌خوانی ---
 @bot.message_handler(
     func=lambda message: True,
     content_types=["text", "audio", "voice", "document", "photo"],
@@ -532,7 +521,6 @@ def handle_messages(message):
     chat_id = message.chat.id
     thread_id = getattr(message, "message_thread_id", None)
 
-    # حالت اول: پیام در تاپیک Übersetzung
     if thread_id == TOPIC_ÜBERSETZUNG and message.reply_to_message:
       match = re.search(r"t\.me/c/\d+/(?P<orig_id>\d+)", message.text or "")
       if match:
@@ -611,7 +599,6 @@ def handle_messages(message):
           pass
         return
 
-    # حالت دوم: پیام در سایر تاپیک‌ها
     if message.reply_to_message:
       original_msg = message.reply_to_message
       original_msg_id = original_msg.message_id
@@ -690,7 +677,6 @@ def handle_messages(message):
         pass
 
 
-# --- راه‌اندازی برای هاست ابری (Webhook) ---
 from flask import Flask, request
 
 app = Flask(__name__)
