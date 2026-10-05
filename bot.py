@@ -206,7 +206,7 @@ def create_dynamic_keyboard(
   return markup
 
 
-# --- دستور کنترل خوش‌آمدگویی (/welcome) ---
+# --- دستور کنترل خوش‌‌آمدگویی (/welcome) ---
 @bot.message_handler(commands=["welcome"])
 def handle_welcome_command(message):
   args = message.text.split()
@@ -690,7 +690,7 @@ def handle_messages(message):
         pass
 
 
-# --- راه‌اندازی برای هاست ابری (Webhook) ---
+# --- راه‌‌اندازی برای هاست ابری (Webhook) ---
 from flask import Flask, request
 
 app = Flask(__name__)
