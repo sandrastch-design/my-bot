@@ -62,7 +62,7 @@ GREETING_TEMPLATES = [
         "**`  Ein warmes Willkommen an dich, {name} ⚘!`**\n"
         "**`✦ ─────────────────────────────────────────── ✦`**\n\n"
         "**_Mach dir keinen Stress beim Lernen. Jeder Fehler hilft dir! "
-        "Nimm dir Zeit, lies mit und sprich einfach على Deutsch mit uns. Wir"
+        "Nimm dir Zeit, lies mit und sprich einfach auf Deutsch mit uns. Wir"
         " freuen uns auf dich!_**"
     ),
     (
@@ -258,7 +258,7 @@ def handle_new_member(message):
     save_settings(settings)
 
 
-# --- دستور دستی ست کردن لینک‌ها (/setlink بدون اخطارهای اضافی) ---
+# --- دستور دستی ست کردن لینک‌ها (/setlink اصلاح‌شده برای دکمه بک و سایر دکمه‌ها) ---
 @bot.message_handler(
     func=lambda message: message.text
     and message.text.startswith("/setlink")
@@ -274,33 +274,44 @@ def set_link_manually(message):
   chat_id = message.chat.id
   thread_id = getattr(message, "message_thread_id", None)
 
+  if not message.reply_to_message:
+    return
+  target_msg_id = message.reply_to_message.message_id
+
+  data = db_get(target_msg_id)
+  if data:
+    _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link = data
+  else:
+    bot_emoji_msg_id = None
+    k_link, g_link, v_link, ü_link = None, None, None, None
+
   if link_type == "back":
     try:
       back_markup = types.InlineKeyboardMarkup()
       back_markup.add(
           types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
       )
-      # ارسال مستقیم به همراه تعیین دقیق تاپیک
-      bot.send_message(
-          chat_id=chat_id,
-          text=EMOJI_TEXT,
-          reply_markup=back_markup,
-          message_thread_id=thread_id,
-      )
+
+      if bot_emoji_msg_id:
+        # اگر پیام ستاره‌دار قبلاً وجود داشته، فقط کیبورد آن را ویرایش کن (بدون پیام جدید)
+        bot.edit_message_reply_markup(
+            chat_id=chat_id,
+            message_id=bot_emoji_msg_id,
+            reply_markup=back_markup,
+        )
+      else:
+        # اگر وجود نداشته، اولین بار پیام را بفرست
+        sent_msg = bot.send_message(
+            chat_id=chat_id,
+            text=EMOJI_TEXT,
+            reply_markup=back_markup,
+            reply_to_message_id=target_msg_id,
+            message_thread_id=thread_id,
+        )
+        bot_emoji_msg_id = sent_msg.message_id
     except Exception:
       pass
   else:
-    if not message.reply_to_message:
-      return
-    target_msg_id = message.reply_to_message.message_id
-
-    data = db_get(target_msg_id)
-    if data:
-      _, bot_emoji_msg_id, k_link, g_link, v_link, ü_link = data
-    else:
-      bot_emoji_msg_id = None
-      k_link, g_link, v_link, ü_link = None, None, None, None
-
     if link_type == "korrektur":
       k_link = new_link
     elif link_type == "grammatik":
@@ -337,15 +348,15 @@ def set_link_manually(message):
       except Exception:
         pass
 
-    db_save(
-        target_msg_id,
-        chat_id,
-        bot_emoji_msg_id,
-        k_link,
-        g_link,
-        v_link,
-        ü_link,
-    )
+  db_save(
+      target_msg_id,
+      chat_id,
+      bot_emoji_msg_id,
+      k_link,
+      g_link,
+      v_link,
+      ü_link,
+  )
 
   try:
     bot.delete_message(chat_id, message.message_id)
@@ -353,7 +364,7 @@ def set_link_manually(message):
     pass
 
 
-# --- دستور افزودن دستی دکمه (نسخه مخفف: /addbtn) ---
+# --- دستور افزودن دستی دکمه (نسخه مخفف: /addbtn بدون تغییر چون بی‌نقص است) ---
 @bot.message_handler(
     func=lambda message: message.text
     and message.text.startswith("/addbtn")
@@ -375,7 +386,6 @@ def add_button_with_link(message):
       back_markup.add(
           types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=new_link)
       )
-      # ارسال مستقیم به همراه تعیین دقیق تاپیک
       bot.send_message(
           chat_id=chat_id,
           text=EMOJI_TEXT,
@@ -682,7 +692,7 @@ def handle_messages(message):
         pass
 
 
-# --- راه‌اندازی برای هاست ابری (Webhook) ---
+# --- راه‌‌اندازی برای هاست ابری (Webhook) ---
 from flask import Flask, request
 
 app = Flask(__name__)
@@ -702,10 +712,9 @@ def index():
 
 
 if __name__ == "__main__":
-  # تنظیم خودکار وب‌هوک روی رندر
   WEBHOOK_URL = f"https://my-bot-0jtw.onrender.com/{TOKEN}"
   bot.remove_webhook()
   bot.set_webhook(url=WEBHOOK_URL)
 
-  port = int(os.environ.get("PORT", 5000))
+  port = int(os.environ.com("PORT", 5000) if "PORT" in os.environ else 5000)
   app.run(host="0.0.0.0", port=port)
