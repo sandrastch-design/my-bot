@@ -1,4 +1,4 @@
-Import os
+import os
 import sqlite3
 import telebot
 from flask import Flask, request
@@ -7,7 +7,8 @@ from flask import Flask, request
 TOKEN = "8879831216:AAF1Qs8S1Yaz_GkbNgIYrnkYQ31pJzqStCE"
 bot = telebot.TeleBot(TOKEN)
 
-# --- راه‌اندازی دیتابیس SQLite ---
+
+# --- راه‌‌اندازی دیتابیس SQLite ---
 def init_db():
   conn = sqlite3.connect("bot_database.db")
   cursor = conn.cursor()
@@ -29,7 +30,6 @@ def init_db():
 
 init_db()
 
-
 # --- راه‌‌اندازی برای هاست ابری (Webhook) ---
 app = Flask(__name__)
 
@@ -48,7 +48,6 @@ def index():
 
 
 if __name__ == "__main__":
-  # تنظیم خودکار وب‌هوک روی رندر
   WEBHOOK_URL = f"https://my-bot-0jtw.onrender.com/{TOKEN}"
   bot.remove_webhook()
   bot.set_webhook(url=WEBHOOK_URL)
