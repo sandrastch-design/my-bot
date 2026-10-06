@@ -46,7 +46,7 @@ def init_db():
 init_db()
 
 
-# --- توابع مدیریت دیتابیس برای دکمه‌ها (شامل بک‌لینک و message_thread_id) ---
+# --- توابع مدیریت دیتابیس برای دکمه‌ها ---
 def get_button_state(original_msg_id):
   conn = sqlite3.connect("bot_database.db")
   cursor = conn.cursor()
@@ -207,12 +207,11 @@ def handle_add_button(message):
   original_msg_id = message.reply_to_message.message_id
   chat_id = message.chat.id
 
-  # استخراج دقیق شناسه تاپیک (اول از پیام ریپلای‌شده، اگر نبود از دیتابیس)
-  state = get_button_state(original_msg_id)
-
+  # استخراج شناسه تاپیک برای ذخیره در دیتابیس
   message_thread_id = getattr(
       message.reply_to_message, "message_thread_id", None
   )
+  state = get_button_state(original_msg_id)
   if not message_thread_id and state and len(state) > 6:
     message_thread_id = state[6]
 
@@ -260,29 +259,21 @@ def handle_add_button(message):
           reply_markup=markup,
       )
     except Exception:
-      # ارسال پیام جدید با رعایت کامل message_thread_id
-      kwargs = {
-          "chat_id": chat_id,
-          "text": EMOJI_TEXT,
-          "reply_markup": markup,
-          "reply_to_message_id": original_msg_id,
-      }
-      if message_thread_id:
-        kwargs["message_thread_id"] = message_thread_id
-
-      new_msg = bot.send_message(**kwargs)
+      # ارسال پیام جدید صرفاً با تکیه بر reply_to_message_id تا تلگرام خودش تاپیک را تشخیص دهد
+      new_msg = bot.send_message(
+          chat_id=chat_id,
+          text=EMOJI_TEXT,
+          reply_markup=markup,
+          reply_to_message_id=original_msg_id,
+      )
       bot_emoji_msg_id = new_msg.message_id
   else:
-    kwargs = {
-        "chat_id": chat_id,
-        "text": EMOJI_TEXT,
-        "reply_markup": markup,
-        "reply_to_message_id": original_msg_id,
-    }
-    if message_thread_id:
-      kwargs["message_thread_id"] = message_thread_id
-
-    new_msg = bot.send_message(**kwargs)
+    new_msg = bot.send_message(
+        chat_id=chat_id,
+        text=EMOJI_TEXT,
+        reply_markup=markup,
+        reply_to_message_id=original_msg_id,
+    )
     bot_emoji_msg_id = new_msg.message_id
 
   save_or_update_button_state(
