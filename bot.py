@@ -46,13 +46,13 @@ def init_db():
 init_db()
 
 
-# --- توابع مدیریت دیتابیس برای دکمه‌ها (شامل بک‌لینک) ---
+# --- توابع مدیریت دیتابیس برای دکمه‌ها (شامل بک‌لینک و message_thread_id) ---
 def get_button_state(original_msg_id):
   conn = sqlite3.connect("bot_database.db")
   cursor = conn.cursor()
   cursor.execute(
       """
-        SELECT bot_emoji_msg_id, korrektur_link, grammatik_link, vokabel_link, übersetzung_link, back_link 
+        SELECT bot_emoji_msg_id, korrektur_link, grammatik_link, vokabel_link, übersetzung_link, back_link, message_thread_id 
         FROM feedbacks WHERE original_msg_id = ?
     """,
       (original_msg_id,),
@@ -136,7 +136,7 @@ def save_or_update_button_state(
   conn.close()
 
 
-# --- تابع ساخت کیبورد هوشمند (شامل چیدمان 4تایی و دکمه بازگشت) ---
+# --- تابع ساخت کیبورد هوشمند (با چیدمان هوشمند ۲تایی) ---
 def create_dynamic_keyboard(
     korrektur_link=None,
     grammatik_link=None,
@@ -149,15 +149,39 @@ def create_dynamic_keyboard(
   row2 = []
   row_back = []
 
+  all_main_buttons = []
   if übersetzung_link:
-    row1.append(types.InlineKeyboardButton("📝 übersetzung", url=übersetzung_link))
+    all_main_buttons.append(
+        types.InlineKeyboardButton("📝 übersetzung", url=übersetzung_link)
+    )
   if korrektur_link:
-    row1.append(types.InlineKeyboardButton("🔍 korrektur", url=korrektur_link))
-
+    all_main_buttons.append(
+        types.InlineKeyboardButton("🔍 korrektur", url=korrektur_link)
+    )
   if vokabel_link:
-    row2.append(types.InlineKeyboardButton("📁 vokabel", url=vokabel_link))
+    all_main_buttons.append(
+        types.InlineKeyboardButton("📁 vokabel", url=vokabel_link)
+    )
   if grammatik_link:
-    row2.append(types.InlineKeyboardButton("✍ grammatik", url=grammatik_link))
+    all_main_buttons.append(
+        types.InlineKeyboardButton("✍ grammatik", url=grammatik_link)
+    )
+
+  total_main = len(all_main_buttons)
+
+  if total_main == 1:
+    row1.append(all_main_buttons[0])
+  elif total_main == 2:
+    row1.extend(all_main_buttons)
+  elif total_main == 3:
+    row1.append(all_main_buttons[0])
+    row1.append(all_main_buttons[1])
+    row2.append(all_main_buttons[2])
+  elif total_main == 4:
+    row1.append(all_main_buttons[0])
+    row1.append(all_main_buttons[1])
+    row2.append(all_main_buttons[2])
+    row2.append(all_main_buttons[3])
 
   if back_link:
     row_back.append(
@@ -174,7 +198,7 @@ def create_dynamic_keyboard(
   return markup
 
 
-# --- هندلر دستور دستی addbtn (با پشتیبانی از ارسال درست در تاپیک) ---
+# --- هندلر دستور دستی addbtn ---
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
   if not message.reply_to_message:
@@ -182,9 +206,15 @@ def handle_add_button(message):
 
   original_msg_id = message.reply_to_message.message_id
   chat_id = message.chat.id
+
+  # استخراج دقیق شناسه تاپیک (اول از پیام ریپلای‌شده، اگر نبود از دیتابیس)
+  state = get_button_state(original_msg_id)
+
   message_thread_id = getattr(
       message.reply_to_message, "message_thread_id", None
   )
+  if not message_thread_id and state and len(state) > 6:
+    message_thread_id = state[6]
 
   parts = message.text.split(maxsplit=2)
   if len(parts) < 3:
@@ -192,8 +222,6 @@ def handle_add_button(message):
 
   btn_name = parts[1].strip().lower()
   btn_link = parts[2].strip()
-
-  state = get_button_state(original_msg_id)
 
   korrektur_l = state[1] if state and state[1] else None
   grammatik_l = state[2] if state and state[2] else None
@@ -232,24 +260,29 @@ def handle_add_button(message):
           reply_markup=markup,
       )
     except Exception:
-      # ارسال پیام جدید در صورت خطا، با رعایت شناسه تاپیک
-      new_msg = bot.send_message(
-          chat_id,
-          EMOJI_TEXT,
-          reply_markup=markup,
-          reply_to_message_id=original_msg_id,
-          message_thread_id=message_thread_id,
-      )
+      # ارسال پیام جدید با رعایت کامل message_thread_id
+      kwargs = {
+          "chat_id": chat_id,
+          "text": EMOJI_TEXT,
+          "reply_markup": markup,
+          "reply_to_message_id": original_msg_id,
+      }
+      if message_thread_id:
+        kwargs["message_thread_id"] = message_thread_id
+
+      new_msg = bot.send_message(**kwargs)
       bot_emoji_msg_id = new_msg.message_id
   else:
-    # ارسال پیام جدید با رعایت شناسه تاپیک
-    new_msg = bot.send_message(
-        chat_id,
-        EMOJI_TEXT,
-        reply_markup=markup,
-        reply_to_message_id=original_msg_id,
-        message_thread_id=message_thread_id,
-    )
+    kwargs = {
+        "chat_id": chat_id,
+        "text": EMOJI_TEXT,
+        "reply_markup": markup,
+        "reply_to_message_id": original_msg_id,
+    }
+    if message_thread_id:
+      kwargs["message_thread_id"] = message_thread_id
+
+    new_msg = bot.send_message(**kwargs)
     bot_emoji_msg_id = new_msg.message_id
 
   save_or_update_button_state(
