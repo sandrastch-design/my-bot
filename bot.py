@@ -1,6 +1,9 @@
+import json
 import os
+import re
 import sqlite3
 import telebot
+from telebot import types
 from flask import Flask, request
 
 # --- تنظیمات اولیه ربات ---
@@ -10,8 +13,16 @@ bot = telebot.TeleBot(TOKEN)
 # متن پیام ربات شامل ایموجی‌ها
 EMOJI_TEXT = "💫✨"
 
+# --- تنظیمات تاپیک‌ها و ادمین‌ها ---
+TOPIC_KORREKTUR = 191  # شناسه تاپیک کرکتور
+TOPIC_GRAMMATIK = 188  # شناسه تاپیک گرامر
+TOPIC_VOKABEL = 189  # شناسه تاپیک لغت
+TOPIC_ÜBERSETZUNG = 334  # شناسه تاپیک ترجمه
 
-# --- راه‌‌‌‌اندازی دیتابیس SQLite ---
+ADMIN_IDS = [103743272]
+
+
+# --- راه‌اندازی دیتابیس SQLite ---
 def init_db():
   conn = sqlite3.connect("bot_database.db")
   cursor = conn.cursor()
@@ -24,7 +35,8 @@ def init_db():
             grammatik_link TEXT,
             vokabel_link TEXT,
             übersetzung_link TEXT,
-            back_link TEXT
+            back_link TEXT,
+            message_thread_id INTEGER
         )
     """)
   conn.commit()
@@ -42,26 +54,24 @@ def create_dynamic_keyboard(
     übersetzung_link=None,
     back_link=None,
 ):
-  markup = telebot.types.InlineKeyboardMarkup()
+  markup = types.InlineKeyboardMarkup()
   buttons = []
 
   if übersetzung_link:
     buttons.append(
-        telebot.types.InlineKeyboardButton(
-            "📝 Übersetzung", url=übersetzung_link
-        )
+        types.InlineKeyboardButton("📝 Übersetzung", url=übersetzung_link)
     )
   if korrektur_link:
     buttons.append(
-        telebot.types.InlineKeyboardButton("🔍 Korrektur", url=korrektur_link)
+        types.InlineKeyboardButton("🔍 Korrektur", url=korrektur_link)
     )
   if grammatik_link:
     buttons.append(
-        telebot.types.InlineKeyboardButton("✍ Grammatik", url=grammatik_link)
+        types.InlineKeyboardButton("✍ Grammatik", url=grammatik_link)
     )
   if vokabel_link:
     buttons.append(
-        telebot.types.InlineKeyboardButton("📁 Vokabel", url=vokabel_link)
+        types.InlineKeyboardButton("📁 Vokabel", url=vokabel_link)
     )
 
   count = len(buttons)
@@ -77,9 +87,7 @@ def create_dynamic_keyboard(
     markup.add(buttons[2], buttons[3])
 
   if back_link:
-    markup.add(
-        telebot.types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=back_link)
-    )
+    markup.add(types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=back_link))
 
   return markup
 
@@ -98,7 +106,7 @@ def webhook():
 
 @app.route("/")
 def index():
-  return "Bot is running with keyboard function!", 200
+  return "Bot is running with core configuration and keyboard function!", 200
 
 
 if __name__ == "__main__":
