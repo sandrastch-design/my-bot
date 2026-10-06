@@ -46,7 +46,97 @@ def init_db():
 init_db()
 
 
-# --- تابع ساخت کیبورد هوشمند دکمه‌های لینک‌دار ---
+# --- توابع مدیریت دیتابیس برای دکمه‌ها (شامل بک‌لینک) ---
+def get_button_state(original_msg_id):
+  conn = sqlite3.connect("bot_database.db")
+  cursor = conn.cursor()
+  cursor.execute(
+      """
+        SELECT bot_emoji_msg_id, korrektur_link, grammatik_link, vokabel_link, übersetzung_link, back_link 
+        FROM feedbacks WHERE original_msg_id = ?
+    """,
+      (original_msg_id,),
+  )
+  row = cursor.fetchone()
+  conn.close()
+  return row
+
+
+def save_or_update_button_state(
+    original_msg_id,
+    chat_id,
+    bot_emoji_msg_id,
+    korrektur_link=None,
+    grammatik_link=None,
+    vokabel_link=None,
+    übersetzung_link=None,
+    back_link=None,
+    message_thread_id=None,
+):
+  conn = sqlite3.connect("bot_database.db")
+  cursor = conn.cursor()
+
+  cursor.execute(
+      "SELECT original_msg_id FROM feedbacks WHERE original_msg_id = ?",
+      (original_msg_id,),
+  )
+  exists = cursor.fetchone()
+
+  if exists:
+    if korrektur_link is not None:
+      cursor.execute(
+          "UPDATE feedbacks SET korrektur_link = ? WHERE original_msg_id = ?",
+          (korrektur_link, original_msg_id),
+      )
+    if grammatik_link is not None:
+      cursor.execute(
+          "UPDATE feedbacks SET grammatik_link = ? WHERE original_msg_id = ?",
+          (grammatik_link, original_msg_id),
+      )
+    if vokabel_link is not None:
+      cursor.execute(
+          "UPDATE feedbacks SET vokabel_link = ? WHERE original_msg_id = ?",
+          (vokabel_link, original_msg_id),
+      )
+    if übersetzung_link is not None:
+      cursor.execute(
+          "UPDATE feedbacks SET übersetzung_link = ? WHERE original_msg_id = ?",
+          (übersetzung_link, original_msg_id),
+      )
+    if back_link is not None:
+      cursor.execute(
+          "UPDATE feedbacks SET back_link = ? WHERE original_msg_id = ?",
+          (back_link, original_msg_id),
+      )
+    if message_thread_id is not None:
+      cursor.execute(
+          "UPDATE feedbacks SET message_thread_id = ? WHERE original_msg_id = ?",
+          (message_thread_id, original_msg_id),
+      )
+  else:
+    cursor.execute(
+        """
+            INSERT INTO feedbacks (original_msg_id, chat_id, bot_emoji_msg_id, korrektur_link, grammatik_link, vokabel_link, übersetzung_link, back_link, message_thread_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            original_msg_id,
+            chat_id,
+            bot_emoji_msg_id,
+            korrektur_link,
+            grammatik_link,
+            vokabel_link,
+            übersetzung_link,
+            back_link,
+            message_thread_id,
+        ),
+    )
+
+  conn.commit()
+  conn.close()
+
+
+# --- تابع ساخت کیبورد هوشمند (شامل چیدمان 4تایی و دکمه بازگشت) ---
 def create_dynamic_keyboard(
     korrektur_link=None,
     grammatik_link=None,
@@ -55,41 +145,121 @@ def create_dynamic_keyboard(
     back_link=None,
 ):
   markup = types.InlineKeyboardMarkup()
-  buttons = []
+  row1 = []
+  row2 = []
+  row_back = []
 
   if übersetzung_link:
-    buttons.append(
-        types.InlineKeyboardButton("📝 Übersetzung", url=übersetzung_link)
-    )
+    row1.append(types.InlineKeyboardButton("📝 übersetzung", url=übersetzung_link))
   if korrektur_link:
-    buttons.append(
-        types.InlineKeyboardButton("🔍 Korrektur", url=korrektur_link)
-    )
-  if grammatik_link:
-    buttons.append(
-        types.InlineKeyboardButton("✍ Grammatik", url=grammatik_link)
-    )
-  if vokabel_link:
-    buttons.append(
-        types.InlineKeyboardButton("📁 Vokabel", url=vokabel_link)
-    )
+    row1.append(types.InlineKeyboardButton("🔍 korrektur", url=korrektur_link))
 
-  count = len(buttons)
-  if count == 1:
-    markup.add(buttons[0])
-  elif count == 2:
-    markup.add(buttons[0], buttons[1])
-  elif count == 3:
-    markup.add(buttons[0], buttons[1])
-    markup.add(buttons[2])
-  elif count >= 4:
-    markup.add(buttons[0], buttons[1])
-    markup.add(buttons[2], buttons[3])
+  if vokabel_link:
+    row2.append(types.InlineKeyboardButton("📁 vokabel", url=vokabel_link))
+  if grammatik_link:
+    row2.append(types.InlineKeyboardButton("✍ grammatik", url=grammatik_link))
 
   if back_link:
-    markup.add(types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=back_link))
+    row_back.append(types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=back_link))
+
+  if row1:
+    markup.row(*row1)
+  if row2:
+    markup.row(*row2)
+  if row_back:
+    markup.row(*row_back)
 
   return markup
+
+
+# --- هندلر دستور دستی addbtn (پشتیبانی از 4 دکمه اصلی و دکمه بازگشت) ---
+@bot.message_handler(commands=["addbtn"])
+def handle_add_button(message):
+  if not message.reply_to_message:
+    return
+
+  original_msg_id = message.reply_to_message.message_id
+  chat_id = message.chat.id
+  message_thread_id = getattr(message.reply_to_message, "message_thread_id", None)
+
+  parts = message.text.split(maxsplit=2)
+  if len(parts) < 3:
+    return
+
+  btn_name = parts[1].strip().lower()
+  btn_link = parts[2].strip()
+
+  state = get_button_state(original_msg_id)
+
+  korrektur_l = state[1] if state and state[1] else None
+  grammatik_l = state[2] if state and state[2] else None
+  vokabel_l = state[3] if state and state[3] else None
+  übersetzung_l = state[4] if state and state[4] else None
+  back_l = state[5] if state and len(state) > 5 and state[5] else None
+  bot_emoji_msg_id = state[0] if state and state[0] else None
+
+  if btn_name == "übersetzung":
+    übersetzung_l = btn_link
+  elif btn_name == "korrektur":
+    korrektur_l = btn_link
+  elif btn_name == "vokabel":
+    vokabel_l = btn_link
+  elif btn_name == "grammatik":
+    grammatik_l = btn_link
+  elif btn_name == "back":
+    back_l = btn_link
+  else:
+    return
+
+  markup = create_dynamic_keyboard(
+      korrektur_link=korrektur_l,
+      grammatik_link=grammatik_l,
+      vokabel_link=vokabel_l,
+      übersetzung_link=übersetzung_l,
+      back_link=back_l,
+  )
+
+  if bot_emoji_msg_id:
+    try:
+      bot.edit_message_text(
+          chat_id=chat_id,
+          message_id=bot_emoji_msg_id,
+          text=EMOJI_TEXT,
+          reply_markup=markup,
+      )
+    except Exception:
+      new_msg = bot.send_message(
+          chat_id,
+          EMOJI_TEXT,
+          reply_markup=markup,
+          reply_to_message_id=original_msg_id,
+      )
+      bot_emoji_msg_id = new_msg.message_id
+  else:
+    new_msg = bot.send_message(
+        chat_id,
+        EMOJI_TEXT,
+        reply_markup=markup,
+        reply_to_message_id=original_msg_id,
+    )
+    bot_emoji_msg_id = new_msg.message_id
+
+  save_or_update_button_state(
+      original_msg_id=original_msg_id,
+      chat_id=chat_id,
+      bot_emoji_msg_id=bot_emoji_msg_id,
+      korrektur_link=korrektur_l,
+      grammatik_link=grammatik_l,
+      vokabel_link=vokabel_l,
+      übersetzung_link=übersetzung_l,
+      back_link=back_l,
+      message_thread_id=message_thread_id,
+  )
+
+  try:
+    bot.delete_message(chat_id, message.message_id)
+  except Exception:
+    pass
 
 
 # --- راه‌‌اندازی برای هاست ابری (Webhook) ---
@@ -106,7 +276,7 @@ def webhook():
 
 @app.route("/")
 def index():
-  return "Bot is running with core configuration and keyboard function!", 200
+  return "Bot is running successfully with all components!", 200
 
 
 if __name__ == "__main__":
