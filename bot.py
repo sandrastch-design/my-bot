@@ -160,7 +160,9 @@ def create_dynamic_keyboard(
     row2.append(types.InlineKeyboardButton("✍ grammatik", url=grammatik_link))
 
   if back_link:
-    row_back.append(types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=back_link))
+    row_back.append(
+        types.InlineKeyboardButton("⬅️ Deutsch sprechen", url=back_link)
+    )
 
   if row1:
     markup.row(*row1)
@@ -172,7 +174,7 @@ def create_dynamic_keyboard(
   return markup
 
 
-# --- هندلر دستور دستی addbtn (پشتیبانی از 4 دکمه اصلی و دکمه بازگشت) ---
+# --- هندلر دستور دستی addbtn (با پشتیبانی از ارسال درست در تاپیک) ---
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
   if not message.reply_to_message:
@@ -180,7 +182,9 @@ def handle_add_button(message):
 
   original_msg_id = message.reply_to_message.message_id
   chat_id = message.chat.id
-  message_thread_id = getattr(message.reply_to_message, "message_thread_id", None)
+  message_thread_id = getattr(
+      message.reply_to_message, "message_thread_id", None
+  )
 
   parts = message.text.split(maxsplit=2)
   if len(parts) < 3:
@@ -228,19 +232,23 @@ def handle_add_button(message):
           reply_markup=markup,
       )
     except Exception:
+      # ارسال پیام جدید در صورت خطا، با رعایت شناسه تاپیک
       new_msg = bot.send_message(
           chat_id,
           EMOJI_TEXT,
           reply_markup=markup,
           reply_to_message_id=original_msg_id,
+          message_thread_id=message_thread_id,
       )
       bot_emoji_msg_id = new_msg.message_id
   else:
+    # ارسال پیام جدید با رعایت شناسه تاپیک
     new_msg = bot.send_message(
         chat_id,
         EMOJI_TEXT,
         reply_markup=markup,
         reply_to_message_id=original_msg_id,
+        message_thread_id=message_thread_id,
     )
     bot_emoji_msg_id = new_msg.message_id
 
