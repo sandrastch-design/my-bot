@@ -27,13 +27,12 @@ EXCEPTION_KEYWORDS = ["vokabel", "grammatik", "korrektur"]
 
 # --- بررسی اینکه آیا پیام در چت اصلی است یا تاپیک ---
 def is_main_chat(message):
-    # اگر پیام دارای message_thread_id باشد یعنی در تاپیک ارسال شده است
     if getattr(message, "message_thread_id", None):
         return False
     return True
 
 
-# --- استخراج امن متن از پیام (حتی پیام‌های ویرایش‌شده‌ای که ابتدا فایل/وویس بودند و بعد متن گرفتند) ---
+# --- استخراج امن متن از پیام (متن یا کپشن) ---
 def get_message_text(message):
     if message.text:
         return message.text
@@ -112,7 +111,7 @@ def save_or_update_button_state(
     conn.close()
 
 
-# --- تابع ساخت کیبورد هوشمند (با چیدمان هوشمند ۲تایی) ---
+# --- تابع ساخت کیبورد هوشمند ---
 def create_dynamic_keyboard(
     korrektur_link=None, grammatik_link=None,
     vokabel_link=None, übersetzung_link=None, back_link=None
@@ -161,7 +160,36 @@ def create_dynamic_keyboard(
     return markup
 
 
-# --- ۱ و ۲. تشخیص خودکار هشتگ (مخصوص چت اصلی برای همه کاربران) ---
+# ==========================================
+# ۱. هندلر دستور reply (پشتیبانی از تمام انواع پیام‌ها برای کلمه reply)
+# ==========================================
+@bot.message_handler(
+    func=lambda m: m.text and m.text.strip().lower() == "reply",
+    content_types=["text", "audio", "voice", "photo", "document", "video", "sticker"]
+)
+def handle_manual_reply(message):
+    if not is_main_chat(message):
+        return
+
+    if not message.reply_to_message:
+        return
+
+    target_msg = message.reply_to_message
+    chat_id = message.chat.id
+
+    # ارسال ایموجی‌ها به صورت ریپلای‌شده روی پیام هدف (چه ویس، چه متن، چه هر چیز دیگه)
+    bot.send_message(
+        chat_id=chat_id, text=EMOJI_TEXT, reply_to_message_id=target_msg.message_id
+    )
+
+    # حذف پیام کلمه «reply» ارسال‌شده توسط کاربر برای مرتب ماندن چت
+    try:
+        bot.delete_message(chat_id, message.message_id)
+    except Exception:
+        pass
+
+
+# --- منطق تشخیص هشتگ ---
 def process_hashtag_logic(message):
     if not is_main_chat(message):
         return
@@ -176,14 +204,15 @@ def process_hashtag_logic(message):
             w.lower() for w in text_stripped.replace("#", " ").split() if w.strip()
         ]
 
-        # اگر کلمه کلیدی جزو استثناها بود، هیچ کاری نکن
         if any(ex in words_after_hash for ex in EXCEPTION_KEYWORDS):
             return
 
-        # ارسال ایموجی به صورت مستقل و بدون ریپلای (فقط در چت اصلی)
         bot.send_message(chat_id=message.chat.id, text=EMOJI_TEXT)
 
 
+# ==========================================
+# ۲. هندلر عمومی برای بقیه پیام‌ها و هشتگ‌ها (شامل متن، ویس، عکس و...)
+# ==========================================
 @bot.message_handler(
     func=lambda m: True,
     content_types=[
@@ -214,32 +243,6 @@ def handle_all_messages(message):
 )
 def handle_edited_messages(message):
     process_hashtag_logic(message)
-
-
-# --- ۳. حالت دستی با نوشتن کلمه reply (فقط در چت اصلی) ---
-@bot.message_handler(
-    func=lambda m: m.text and m.text.strip().lower() == "reply"
-)
-def handle_manual_reply(message):
-    if not is_main_chat(message):
-        return
-
-    if not message.reply_to_message:
-        return
-
-    target_msg = message.reply_to_message
-    chat_id = message.chat.id
-
-    # ارسال ایموجی‌ها به صورت ریپلای‌شده روی پیام هدف
-    bot.send_message(
-        chat_id=chat_id, text=EMOJI_TEXT, reply_to_message_id=target_msg.message_id
-    )
-
-    # حذف پیام کلمه «reply» ارسال‌شده توسط کاربر برای مرتب ماندن چت
-    try:
-        bot.delete_message(chat_id, message.message_id)
-    except Exception:
-        pass
 
 
 # --- هندلر دستور دستی addbtn ---
