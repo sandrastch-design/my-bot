@@ -1,7 +1,6 @@
 import json
 import os
 import re
-sqlite3
 import telebot
 from telebot import types
 from flask import Flask, request
@@ -159,7 +158,7 @@ def handle_edited_messages(message):
     process_hashtag_logic(message)
 
 
-# --- هندلر دستور دستی addbtn (نسخه هوشمند بدون وابستگی به دیتابیس) ---
+# --- هندلر دستور دستی addbtn ---
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
     if message.from_user.id not in ADMIN_IDS:
@@ -178,7 +177,6 @@ def handle_add_button(message):
     btn_name = parts[1].strip().lower()
     btn_link = parts[2].strip()
 
-    # استخراج دکمه‌های قبلی از روی کیبورد شیشه‌ایِ خودِ پیام هدف (اگر وجود داشته باشد)
     korrektur_l = None
     grammatik_l = None
     vokabel_l = None
@@ -201,7 +199,6 @@ def handle_add_button(message):
                 elif "deutsch sprechen" in text:
                     back_l = url
 
-    # اضافه یا آپدیت کردن لینک جدید
     if btn_name == "übersetzung":
         übersetzung_l = btn_link
     elif btn_name == "korrektur":
@@ -215,7 +212,6 @@ def handle_add_button(message):
     else:
         return
 
-    # ساخت کیبورد جدید
     markup = create_dynamic_keyboard(
         korrektur_link=korrektur_l,
         grammatik_link=grammatik_l,
@@ -224,7 +220,6 @@ def handle_add_button(message):
         back_link=back_l
     )
 
-    # ویرایش مستقیم همان پیام ایموجیِ هدف
     try:
         bot.edit_message_text(
             chat_id=chat_id,
@@ -235,7 +230,6 @@ def handle_add_button(message):
     except Exception as e:
         print(f"Error editing message: {e}")
 
-    # پاک کردن دستور addbtn ادمین برای مرتب ماندن چت
     try:
         bot.delete_message(chat_id, message.message_id)
     except Exception:
