@@ -7,7 +7,7 @@ from telebot import types
 from flask import Flask, request
 
 # --- تنظیمات اولیه ربات ---
-TOKEN = "8879831216:AAF1Qs8S1Yaz_GkbNgIYrnkYQ31pJzqStCE"
+TOKEN = "8879831216:AAGVuAnAH7SgDwniBNGxd0jF_grYUgPZm0o"
 bot = telebot.TeleBot(TOKEN)
 
 # متن پیام ربات شامل ایموجی‌ها
