@@ -173,7 +173,7 @@ def create_dynamic_keyboard(
 
 
 # ==========================================
-# ۱. هندلر دستور دستی addbtn
+# ۱. هندلر دستور دستی addbtn (اصلاح شده)
 # ==========================================
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
@@ -186,27 +186,21 @@ def handle_add_button(message):
     replied_msg = message.reply_to_message
     chat_id = message.chat.id
 
-    # بررسی اینکه آیا روی پیامِ خودِ ربات (ایموجی) ریپلای شده یا پیام اصلی کاربر
+    # بررسی هوشمندانه: آیا روی پیام خودِ ربات (ایموجی) ریپلای شده یا پیام کاربر؟
     state = get_button_state(replied_msg.message_id)
-    
+    original_msg_id = replied_msg.message_id
+
     if not state:
-        # اگر با شناسه پیام پیدا نشد، شاید روی خود پیام ایموجی ربات ریپلای شده باشد
+        # اگر با original_msg_id پیدا نشد، چک کنیم شاید روی پیام ایموجی ربات ریپلای شده باشد
         bot_state_check = get_state_by_bot_emoji_id(replied_msg.message_id)
         if bot_state_check:
             original_msg_id = bot_state_check[0]
             state = get_button_state(original_msg_id)
-        else:
-            original_msg_id = replied_msg.message_id
-    else:
-        original_msg_id = replied_msg.message_id
 
+    # استخراج thread_id در صورت وجود
     message_thread_id = getattr(replied_msg, "message_thread_id", None)
-    if not message_thread_id and state and len(state) > 6:
+    if not message_thread_id and state and len(state) > 6 and state[6]:
         message_thread_id = state[6]
-    elif not message_thread_id:
-        bot_state_check = get_state_by_bot_emoji_id(replied_msg.message_id)
-        if bot_state_check and len(bot_state_check) > 7:
-            message_thread_id = bot_state_check[7]
 
     parts = message.text.split(maxsplit=2)
     if len(parts) < 3:
@@ -301,8 +295,16 @@ def handle_manual_reply(message):
     target_msg = message.reply_to_message
     chat_id = message.chat.id
 
-    bot.send_message(
+    sent_msg = bot.send_message(
         chat_id=chat_id, text=EMOJI_TEXT, reply_to_message_id=target_msg.message_id
+    )
+    
+    # ذخیره خودکار پیام ایموجی اولیه در دیتابیس برای اینکه بعداً با /addbtn بشه راحت روش کار کرد
+    save_or_update_button_state(
+        original_msg_id=target_msg.message_id,
+        chat_id=chat_id,
+        bot_emoji_msg_id=sent_msg.message_id,
+        message_thread_id=getattr(target_msg, "message_thread_id", None)
     )
 
     try:
@@ -329,7 +331,15 @@ def process_hashtag_logic(message):
         if any(ex in words_after_hash for ex in EXCEPTION_KEYWORDS):
             return
 
-        bot.send_message(chat_id=message.chat.id, text=EMOJI_TEXT)
+        sent_msg = bot.send_message(chat_id=message.chat.id, text=EMOJI_TEXT)
+        
+        # ذخیره در دیتابیس هنگام ارسال خودکار ایموجی هشتگ
+        save_or_update_button_state(
+            original_msg_id=message.message_id,
+            chat_id=message.chat.id,
+            bot_emoji_msg_id=sent_msg.message_id,
+            message_thread_id=getattr(message, "message_thread_id", None)
+        )
 
 
 # ==========================================
