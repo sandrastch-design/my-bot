@@ -77,6 +77,18 @@ def get_button_state(original_msg_id):
     return row
 
 
+def get_state_by_bot_emoji_id(bot_emoji_msg_id):
+    conn = sqlite3.connect("bot_database.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT original_msg_id, bot_emoji_msg_id, korrektur_link, grammatik_link, vokabel_link, übersetzung_link, back_link, message_thread_id 
+        FROM feedbacks WHERE bot_emoji_msg_id = ?
+    """, (bot_emoji_msg_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row
+
+
 def save_or_update_button_state(
     original_msg_id, chat_id, bot_emoji_msg_id,
     korrektur_link=None, grammatik_link=None, vokabel_link=None,
@@ -161,7 +173,7 @@ def create_dynamic_keyboard(
 
 
 # ==========================================
-# ۱. هندلر دستور دستی addbtn (دستورات باید اولویت اول باشند)
+# ۱. هندلر دستور دستی addbtn
 # ==========================================
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
@@ -171,13 +183,30 @@ def handle_add_button(message):
     if not message.reply_to_message:
         return
 
-    original_msg_id = message.reply_to_message.message_id
+    replied_msg = message.reply_to_message
     chat_id = message.chat.id
 
-    message_thread_id = getattr(message.reply_to_message, "message_thread_id", None)
-    state = get_button_state(original_msg_id)
+    # بررسی اینکه آیا روی پیامِ خودِ ربات (ایموجی) ریپلای شده یا پیام اصلی کاربر
+    state = get_button_state(replied_msg.message_id)
+    
+    if not state:
+        # اگر با شناسه پیام پیدا نشد، شاید روی خود پیام ایموجی ربات ریپلای شده باشد
+        bot_state_check = get_state_by_bot_emoji_id(replied_msg.message_id)
+        if bot_state_check:
+            original_msg_id = bot_state_check[0]
+            state = get_button_state(original_msg_id)
+        else:
+            original_msg_id = replied_msg.message_id
+    else:
+        original_msg_id = replied_msg.message_id
+
+    message_thread_id = getattr(replied_msg, "message_thread_id", None)
     if not message_thread_id and state and len(state) > 6:
         message_thread_id = state[6]
+    elif not message_thread_id:
+        bot_state_check = get_state_by_bot_emoji_id(replied_msg.message_id)
+        if bot_state_check and len(bot_state_check) > 7:
+            message_thread_id = bot_state_check[7]
 
     parts = message.text.split(maxsplit=2)
     if len(parts) < 3:
