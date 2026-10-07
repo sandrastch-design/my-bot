@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sqlite3
 import telebot
 from telebot import types
 from flask import Flask, request
@@ -22,6 +23,68 @@ TOPIC_VOKABEL = 189  # شناسه تاپیک لغت
 TOPIC_ÜBERSETZUNG = 334  # شناسه تاپیک ترجمه
 
 ADMIN_IDS = [103743272]
+
+
+# --- راه‌اندازی دیتابیس برای نگهداری لینک دکمه‌های هر پیام ---
+def init_db():
+    conn = sqlite3.connect("bot_buttons.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS message_buttons (
+            chat_id INTEGER,
+            message_id INTEGER,
+            übersetzung TEXT,
+            korrektur TEXT,
+            vokabel TEXT,
+            grammatik TEXT,
+            back TEXT,
+            PRIMARY KEY (chat_id, message_id)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+
+def save_buttons_to_db(chat_id, message_id, links_dict):
+    conn = sqlite3.connect("bot_buttons.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT OR REPLACE INTO message_buttons 
+        (chat_id, message_id, übersetzung, korrektur, vokabel, grammatiK, back)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        chat_id, message_id,
+        links_dict.get('übersetzung'),
+        links_dict.get('korrektur'),
+        links_dict.get('vokabel'),
+        links_dict.get('grammatik'),
+        links_dict.get('back')
+    ))
+    conn.commit()
+    conn.close()
+
+
+def get_buttons_from_db(chat_id, message_id):
+    conn = sqlite3.connect("bot_buttons.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT übersetzung, korrektur, vokabel, grammatiK, back 
+        FROM message_buttons WHERE chat_id = ? AND message_id = ?
+    """, (chat_id, message_id))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        return {
+            'übersetzung': row[0],
+            'korrektur': row[1],
+            'vokabel': row[2],
+            'grammatik': row[3],
+            'back': row[4]
+        }
+    return {}
 
 
 # --- تابع ساخت کیبورد هوشمند (با چیدمان هوشمند ۲تایی) ---
@@ -158,7 +221,7 @@ def handle_edited_messages(message):
     process_hashtag_logic(message)
 
 
-# --- هندلر دستور دستی addbtn ---
+# --- هندلر دستور دستی addbtn (پشتیبانی کامل از دیتابیس برای هر نوع پیام: متنی، صوتی و...) ---
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
     if message.from_user.id not in ADMIN_IDS:
@@ -177,56 +240,44 @@ def handle_add_button(message):
     btn_name = parts[1].strip().lower()
     btn_link = parts[2].strip()
 
-    korrektur_l = None
-    grammatik_l = None
-    vokabel_l = None
-    übersetzung_l = None
-    back_l = None
+    # دریافت لینک‌های قبلی این پیام از دیتابیس
+    existing_links = get_buttons_from_db(chat_id, target_msg.message_id)
 
-    if target_msg.reply_markup and target_msg.reply_markup.keyboard:
-        for row in target_msg.reply_markup.keyboard:
-            for btn in row:
-                text = btn.text.lower()
-                url = btn.url
-                if "übersetzung" in text:
-                    übersetzung_l = url
-                elif "korrektur" in text:
-                    korrektur_l = url
-                elif "vokabel" in text:
-                    vokabel_l = url
-                elif "grammatik" in text:
-                    grammatik_l = url
-                elif "deutsch sprechen" in text:
-                    back_l = url
-
+    # به‌روزرسانی یا اضافه کردن لینک جدید
     if btn_name == "übersetzung":
-        übersetzung_l = btn_link
+        existing_links['übersetzung'] = btn_link
     elif btn_name == "korrektur":
-        korrektur_l = btn_link
+        existing_links['korrektur'] = btn_link
     elif btn_name == "vokabel":
-        vokabel_l = btn_link
+        existing_links['vokabel'] = btn_link
     elif btn_name == "grammatik":
-        grammatik_l = btn_link
+        existing_links['grammatik'] = btn_link
     elif btn_name == "back":
-        back_l = btn_link
+        existing_links['back'] = btn_link
     else:
         return
 
+    # ساخت کیبورد جدید با تابع استاندارد شما
     markup = create_dynamic_keyboard(
-        korrektur_link=korrektur_l,
-        grammatik_link=grammatik_l,
-        vokabel_link=vokabel_l,
-        übersetzung_link=übersetzung_l,
-        back_link=back_l
+        korrektur_link=existing_links.get('korrektur'),
+        grammatik_link=existing_links.get('grammatik'),
+        vokabel_link=existing_links.get('vokabel'),
+        übersetzung_link=existing_links.get('übersetzung'),
+        back_link=existing_links.get('back')
     )
 
     try:
+        # اگر پیام هدف خودش متن داشته باشد، متن را نگه می‌داریم، وگرنه ایموجی می‌گذاریم
+        current_target_text = get_message_text(target_msg) or EMOJI_TEXT
+        
         bot.edit_message_text(
             chat_id=chat_id,
             message_id=target_msg.message_id,
-            text=EMOJI_TEXT,
+            text=current_target_text,
             reply_markup=markup
         )
+        # ذخیره نهایی در دیتابیس
+        save_buttons_to_db(chat_id, target_msg.message_id, existing_links)
     except Exception as e:
         print(f"Error editing message: {e}")
 
@@ -248,7 +299,7 @@ def webhook():
 
 @app.route("/")
 def index():
-    return "Bot is running successfully with all components!", 200
+    return "Bot is running successfully with Database and full support!", 200
 
 
 if __name__ == "__main__":
@@ -256,5 +307,7 @@ if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=WEBHOOK_URL)
 
+    port = int(os.environ.com("PORT", 5000) if hasattr(os, 'environ') else 5000)
+    # اصلاح پورت برای رندر
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
