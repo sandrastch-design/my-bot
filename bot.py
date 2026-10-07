@@ -52,7 +52,7 @@ def save_buttons_to_db(chat_id, message_id, links_dict):
     cursor = conn.cursor()
     cursor.execute("""
         INSERT OR REPLACE INTO message_buttons 
-        (chat_id, message_id, übersetzung, korrektur, vokabel, grammatiK, back)
+        (chat_id, message_id, übersetzung, korrektur, vokabel, grammatik, back)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     """, (
         chat_id, message_id,
@@ -70,7 +70,7 @@ def get_buttons_from_db(chat_id, message_id):
     conn = sqlite3.connect("bot_buttons.db")
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT übersetzung, korrektur, vokabel, grammatiK, back 
+        SELECT übersetzung, korrektur, vokabel, grammatik, back 
         FROM message_buttons WHERE chat_id = ? AND message_id = ?
     """, (chat_id, message_id))
     row = cursor.fetchone()
@@ -221,7 +221,7 @@ def handle_edited_messages(message):
     process_hashtag_logic(message)
 
 
-# --- هندلر دستور دستی addbtn (پشتیبانی کامل از دیتابیس برای هر نوع پیام: متنی، صوتی و...) ---
+# --- هندلر دستور دستی addbtn ---
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
     if message.from_user.id not in ADMIN_IDS:
@@ -240,10 +240,8 @@ def handle_add_button(message):
     btn_name = parts[1].strip().lower()
     btn_link = parts[2].strip()
 
-    # دریافت لینک‌های قبلی این پیام از دیتابیس
     existing_links = get_buttons_from_db(chat_id, target_msg.message_id)
 
-    # به‌روزرسانی یا اضافه کردن لینک جدید
     if btn_name == "übersetzung":
         existing_links['übersetzung'] = btn_link
     elif btn_name == "korrektur":
@@ -257,7 +255,6 @@ def handle_add_button(message):
     else:
         return
 
-    # ساخت کیبورد جدید با تابع استاندارد شما
     markup = create_dynamic_keyboard(
         korrektur_link=existing_links.get('korrektur'),
         grammatik_link=existing_links.get('grammatik'),
@@ -267,7 +264,6 @@ def handle_add_button(message):
     )
 
     try:
-        # اگر پیام هدف خودش متن داشته باشد، متن را نگه می‌داریم، وگرنه ایموجی می‌گذاریم
         current_target_text = get_message_text(target_msg) or EMOJI_TEXT
         
         bot.edit_message_text(
@@ -276,7 +272,6 @@ def handle_add_button(message):
             text=current_target_text,
             reply_markup=markup
         )
-        # ذخیره نهایی در دیتابیس
         save_buttons_to_db(chat_id, target_msg.message_id, existing_links)
     except Exception as e:
         print(f"Error editing message: {e}")
@@ -299,7 +294,7 @@ def webhook():
 
 @app.route("/")
 def index():
-    return "Bot is running successfully with Database and full support!", 200
+    return "Bot is running successfully!", 200
 
 
 if __name__ == "__main__":
@@ -307,7 +302,5 @@ if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=WEBHOOK_URL)
 
-    port = int(os.environ.com("PORT", 5000) if hasattr(os, 'environ') else 5000)
-    # اصلاح پورت برای رندر
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
