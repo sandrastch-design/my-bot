@@ -13,6 +13,9 @@ bot = telebot.TeleBot(TOKEN)
 # متن پیام ربات شامل ایموجی‌ها
 EMOJI_TEXT = "💫✨"
 
+# --- استثنائات هشتگ ---
+EXCEPTION_KEYWORDS = ["vokabel", "grammatik", "korrektur"]
+
 # --- تنظیمات تاپیک‌ها و ادمین‌ها ---
 TOPIC_KORREKTUR = 191  # شناسه تاپیک کرکتور
 TOPIC_GRAMMATIK = 188  # شناسه تاپیک گرامر
@@ -141,10 +144,100 @@ def create_dynamic_keyboard(
     return markup
 
 
+# --- بررسی اینکه آیا پیام در چت اصلی است یا تاپیک ---
+def is_main_chat(message):
+    if getattr(message, "message_thread_id", None):
+        return False
+    return True
+
+
+# --- استخراج امن متن از پیام (حتی پیام‌های ویرایش‌شده‌ای که ابتدا فایل/وویس بودند) ---
+def get_message_text(message):
+    if message.text:
+        return message.text
+    elif message.caption:
+        return message.caption
+    return None
+
+
+# --- تشخیص خودکار هشتگ (مخصوص چت اصلی) ---
+def process_hashtag_logic(message):
+    if not is_main_chat(message):
+        return
+
+    text = get_message_text(message)
+    if not text:
+        return
+
+    text_stripped = text.strip()
+    if "#" in text_stripped:
+        words_after_hash = [
+            w.lower() for w in text_stripped.replace("#", " ").split() if w.strip()
+        ]
+
+        if any(ex in words_after_hash for ex in EXCEPTION_KEYWORDS):
+            return
+
+        bot.send_message(chat_id=message.chat.id, text="💫✨")
+
+
+@bot.message_handler(
+    func=lambda m: True,
+    content_types=[
+        "text",
+        "audio",
+        "voice",
+        "photo",
+        "document",
+        "video",
+        "sticker",
+    ],
+)
+def handle_all_messages(message):
+    process_hashtag_logic(message)
+
+
+@bot.edited_message_handler(
+    func=lambda m: True,
+    content_types=[
+        "text",
+        "audio",
+        "voice",
+        "photo",
+        "document",
+        "video",
+        "sticker",
+    ],
+)
+def handle_edited_messages(message):
+    process_hashtag_logic(message)
+
+
+# --- ۳. حالت دستی با دستور /reply (برای چت اصلی) ---
+@bot.message_handler(commands=["reply"])
+def handle_manual_reply(message):
+    if not is_main_chat(message):
+        return
+
+    if not message.reply_to_message:
+        return
+
+    target_msg = message.reply_to_message
+    chat_id = message.chat.id
+
+    bot.send_message(
+        chat_id=chat_id, text="💫✨", reply_to_message_id=target_msg.message_id
+    )
+
+    try:
+        bot.delete_message(chat_id, message.message_id)
+    except Exception:
+        pass
+
+
 # --- هندلر دستور دستی addbtn ---
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
-    # بررسی اینکه آیا کاربر ادمین است یا خیر
     if message.from_user.id not in ADMIN_IDS:
         return
 
@@ -154,7 +247,6 @@ def handle_add_button(message):
     original_msg_id = message.reply_to_message.message_id
     chat_id = message.chat.id
 
-    # استخراج شناسه تاپیک از پیام ریپلای شده یا دیتابیس
     message_thread_id = getattr(message.reply_to_message, "message_thread_id", None)
     state = get_button_state(original_msg_id)
     if not message_thread_id and state and len(state) > 6:
@@ -204,7 +296,6 @@ def handle_add_button(message):
                 reply_markup=markup
             )
         except Exception:
-            # ارسال پیام جدید با رعایت message_thread_id در صورت وجود تاپیک
             kwargs = {"chat_id": chat_id, "text": EMOJI_TEXT, "reply_markup": markup}
             if message_thread_id:
                 kwargs["message_thread_id"] = message_thread_id
@@ -257,5 +348,5 @@ if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=WEBHOOK_URL)
 
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.Test.get("PORT", 5000)) if hasattr(os.environ, "Test") else int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
