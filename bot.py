@@ -161,91 +161,8 @@ def create_dynamic_keyboard(
 
 
 # ==========================================
-# ۱. هندلر دستور reply (پشتیبانی از تمام انواع پیام‌ها برای کلمه reply)
+# ۱. هندلر دستور دستی addbtn (دستورات باید اولویت اول باشند)
 # ==========================================
-@bot.message_handler(
-    func=lambda m: m.text and m.text.strip().lower() == "reply",
-    content_types=["text", "audio", "voice", "photo", "document", "video", "sticker"]
-)
-def handle_manual_reply(message):
-    if not is_main_chat(message):
-        return
-
-    if not message.reply_to_message:
-        return
-
-    target_msg = message.reply_to_message
-    chat_id = message.chat.id
-
-    # ارسال ایموجی‌ها به صورت ریپلای‌شده روی پیام هدف (چه ویس، چه متن، چه هر چیز دیگه)
-    bot.send_message(
-        chat_id=chat_id, text=EMOJI_TEXT, reply_to_message_id=target_msg.message_id
-    )
-
-    # حذف پیام کلمه «reply» ارسال‌شده توسط کاربر برای مرتب ماندن چت
-    try:
-        bot.delete_message(chat_id, message.message_id)
-    except Exception:
-        pass
-
-
-# --- منطق تشخیص هشتگ ---
-def process_hashtag_logic(message):
-    if not is_main_chat(message):
-        return
-
-    text = get_message_text(message)
-    if not text:
-        return
-
-    text_stripped = text.strip()
-    if "#" in text_stripped:
-        words_after_hash = [
-            w.lower() for w in text_stripped.replace("#", " ").split() if w.strip()
-        ]
-
-        if any(ex in words_after_hash for ex in EXCEPTION_KEYWORDS):
-            return
-
-        bot.send_message(chat_id=message.chat.id, text=EMOJI_TEXT)
-
-
-# ==========================================
-# ۲. هندلر عمومی برای بقیه پیام‌ها و هشتگ‌ها (شامل متن، ویس، عکس و...)
-# ==========================================
-@bot.message_handler(
-    func=lambda m: True,
-    content_types=[
-        "text",
-        "audio",
-        "voice",
-        "photo",
-        "document",
-        "video",
-        "sticker",
-    ],
-)
-def handle_all_messages(message):
-    process_hashtag_logic(message)
-
-
-@bot.edited_message_handler(
-    func=lambda m: True,
-    content_types=[
-        "text",
-        "audio",
-        "voice",
-        "photo",
-        "document",
-        "video",
-        "sticker",
-    ],
-)
-def handle_edited_messages(message):
-    process_hashtag_logic(message)
-
-
-# --- هندلر دستور دستی addbtn ---
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
     if message.from_user.id not in ADMIN_IDS:
@@ -336,6 +253,89 @@ def handle_add_button(message):
         bot.delete_message(chat_id, message.message_id)
     except Exception:
         pass
+
+
+# ==========================================
+# ۲. هندلر دستور reply 
+# ==========================================
+@bot.message_handler(
+    func=lambda m: m.text and m.text.strip().lower() == "reply",
+    content_types=["text", "audio", "voice", "photo", "document", "video", "sticker"]
+)
+def handle_manual_reply(message):
+    if not is_main_chat(message):
+        return
+
+    if not message.reply_to_message:
+        return
+
+    target_msg = message.reply_to_message
+    chat_id = message.chat.id
+
+    bot.send_message(
+        chat_id=chat_id, text=EMOJI_TEXT, reply_to_message_id=target_msg.message_id
+    )
+
+    try:
+        bot.delete_message(chat_id, message.message_id)
+    except Exception:
+        pass
+
+
+# --- منطق تشخیص هشتگ ---
+def process_hashtag_logic(message):
+    if not is_main_chat(message):
+        return
+
+    text = get_message_text(message)
+    if not text:
+        return
+
+    text_stripped = text.strip()
+    if "#" in text_stripped:
+        words_after_hash = [
+            w.lower() for w in text_stripped.replace("#", " ").split() if w.strip()
+        ]
+
+        if any(ex in words_after_hash for ex in EXCEPTION_KEYWORDS):
+            return
+
+        bot.send_message(chat_id=message.chat.id, text=EMOJI_TEXT)
+
+
+# ==========================================
+# ۳. هندلر عمومی برای بقیه پیام‌ها و هشتگ‌ها
+# ==========================================
+@bot.message_handler(
+    func=lambda m: True,
+    content_types=[
+        "text",
+        "audio",
+        "voice",
+        "photo",
+        "document",
+        "video",
+        "sticker",
+    ],
+)
+def handle_all_messages(message):
+    process_hashtag_logic(message)
+
+
+@bot.edited_message_handler(
+    func=lambda m: True,
+    content_types=[
+        "text",
+        "audio",
+        "voice",
+        "photo",
+        "document",
+        "video",
+        "sticker",
+    ],
+)
+def handle_edited_messages(message):
+    process_hashtag_logic(message)
 
 
 # --- راه‌‌اندازی برای هاست ابری (Webhook) ---
