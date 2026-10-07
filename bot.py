@@ -13,9 +13,6 @@ bot = telebot.TeleBot(TOKEN)
 # متن پیام ربات شامل ایموجی‌ها
 EMOJI_TEXT = "💫✨"
 
-# --- استثنائات هشتگ ---
-EXCEPTION_KEYWORDS = ["vokabel", "grammatik", "korrektur"]
-
 # --- تنظیمات تاپیک‌ها و ادمین‌ها ---
 TOPIC_KORREKTUR = 191  # شناسه تاپیک کرکتور
 TOPIC_GRAMMATIK = 188  # شناسه تاپیک گرامر
@@ -24,21 +21,42 @@ TOPIC_ÜBERSETZUNG = 334  # شناسه تاپیک ترجمه
 
 ADMIN_IDS = [103743272]
 
+# کلماتی که ربات نباید برایشان ایموجی خودکار بفرستد
+EXCEPTION_KEYWORDS = ["vokabel", "grammatik", "korrektur"]
 
-# --- راه‌اندازی دیتابیس برای نگهداری لینک دکمه‌های هر پیام ---
+
+# --- بررسی اینکه آیا پیام در چت اصلی است یا تاپیک ---
+def is_main_chat(message):
+    # اگر پیام دارای message_thread_id باشد یعنی در تاپیک ارسال شده است
+    if getattr(message, "message_thread_id", None):
+        return False
+    return True
+
+
+# --- استخراج امن متن از پیام (حتی پیام‌های ویرایش‌شده‌ای که ابتدا فایل/وویس بودند و بعد متن گرفتند) ---
+def get_message_text(message):
+    if message.text:
+        return message.text
+    elif message.caption:
+        return message.caption
+    return None
+
+
+# --- راه‌اندازی دیتابیس SQLite ---
 def init_db():
-    conn = sqlite3.connect("bot_buttons.db")
+    conn = sqlite3.connect("bot_database.db")
     cursor = conn.cursor()
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS message_buttons (
+        CREATE TABLE IF NOT EXISTS feedbacks (
+            original_msg_id INTEGER PRIMARY KEY,
             chat_id INTEGER,
-            message_id INTEGER,
-            übersetzung TEXT,
-            korrektur TEXT,
-            vokabel TEXT,
-            grammatik TEXT,
-            back TEXT,
-            PRIMARY KEY (chat_id, message_id)
+            bot_emoji_msg_id INTEGER,
+            korrektur_link TEXT,
+            grammatik_link TEXT,
+            vokabel_link TEXT,
+            übersetzung_link TEXT,
+            back_link TEXT,
+            message_thread_id INTEGER
         )
     """)
     conn.commit()
@@ -47,44 +65,51 @@ def init_db():
 init_db()
 
 
-def save_buttons_to_db(chat_id, message_id, links_dict):
-    conn = sqlite3.connect("bot_buttons.db")
+# --- توابع مدیریت دیتابیس برای دکمه‌ها ---
+def get_button_state(original_msg_id):
+    conn = sqlite3.connect("bot_database.db")
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT OR REPLACE INTO message_buttons 
-        (chat_id, message_id, übersetzung, korrektur, vokabel, grammatik, back)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        chat_id, message_id,
-        links_dict.get('übersetzung'),
-        links_dict.get('korrektur'),
-        links_dict.get('vokabel'),
-        links_dict.get('grammatik'),
-        links_dict.get('back')
-    ))
-    conn.commit()
-    conn.close()
-
-
-def get_buttons_from_db(chat_id, message_id):
-    conn = sqlite3.connect("bot_buttons.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT übersetzung, korrektur, vokabel, grammatik, back 
-        FROM message_buttons WHERE chat_id = ? AND message_id = ?
-    """, (chat_id, message_id))
+        SELECT bot_emoji_msg_id, korrektur_link, grammatik_link, vokabel_link, übersetzung_link, back_link, message_thread_id 
+        FROM feedbacks WHERE original_msg_id = ?
+    """, (original_msg_id,))
     row = cursor.fetchone()
     conn.close()
-    
-    if row:
-        return {
-            'übersetzung': row[0],
-            'korrektur': row[1],
-            'vokabel': row[2],
-            'grammatik': row[3],
-            'back': row[4]
-        }
-    return {}
+    return row
+
+
+def save_or_update_button_state(
+    original_msg_id, chat_id, bot_emoji_msg_id,
+    korrektur_link=None, grammatik_link=None, vokabel_link=None,
+    übersetzung_link=None, back_link=None, message_thread_id=None
+):
+    conn = sqlite3.connect("bot_database.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT original_msg_id FROM feedbacks WHERE original_msg_id = ?", (original_msg_id,))
+    exists = cursor.fetchone()
+
+    if exists:
+        if korrektur_link is not None:
+            cursor.execute("UPDATE feedbacks SET korrektur_link = ? WHERE original_msg_id = ?", (korrektur_link, original_msg_id))
+        if grammatik_link is not None:
+            cursor.execute("UPDATE feedbacks SET grammatik_link = ? WHERE original_msg_id = ?", (grammatik_link, original_msg_id))
+        if vokabel_link is not None:
+            cursor.execute("UPDATE feedbacks SET vokabel_link = ? WHERE original_msg_id = ?", (vokabel_link, original_msg_id))
+        if übersetzung_link is not None:
+            cursor.execute("UPDATE feedbacks SET übersetzung_link = ? WHERE original_msg_id = ?", (übersetzung_link, original_msg_id))
+        if back_link is not None:
+            cursor.execute("UPDATE feedbacks SET back_link = ? WHERE original_msg_id = ?", (back_link, original_msg_id))
+        if message_thread_id is not None:
+            cursor.execute("UPDATE feedbacks SET message_thread_id = ? WHERE original_msg_id = ?", (message_thread_id, original_msg_id))
+    else:
+        cursor.execute("""
+            INSERT INTO feedbacks (original_msg_id, chat_id, bot_emoji_msg_id, korrektur_link, grammatik_link, vokabel_link, übersetzung_link, back_link, message_thread_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (original_msg_id, chat_id, bot_emoji_msg_id, korrektur_link, grammatik_link, vokabel_link, übersetzung_link, back_link, message_thread_id))
+
+    conn.commit()
+    conn.close()
 
 
 # --- تابع ساخت کیبورد هوشمند (با چیدمان هوشمند ۲تایی) ---
@@ -136,23 +161,7 @@ def create_dynamic_keyboard(
     return markup
 
 
-# --- بررسی اینکه آیا پیام در چت اصلی است یا تاپیک ---
-def is_main_chat(message):
-    if getattr(message, "message_thread_id", None):
-        return False
-    return True
-
-
-# --- استخراج امن متن از پیام ---
-def get_message_text(message):
-    if message.text:
-        return message.text
-    elif message.caption:
-        return message.caption
-    return None
-
-
-# --- تشخیص خودکار هشتگ (مخصوص چت اصلی) ---
+# --- ۱ و ۲. تشخیص خودکار هشتگ (مخصوص چت اصلی برای همه کاربران) ---
 def process_hashtag_logic(message):
     if not is_main_chat(message):
         return
@@ -162,30 +171,16 @@ def process_hashtag_logic(message):
         return
 
     text_stripped = text.strip()
-    
-    # بررسی حالت دستی reply
-    if text_stripped.lower() == "reply" and message.reply_to_message:
-        chat_id = message.chat.id
-        target_msg = message.reply_to_message
-        
-        bot.send_message(
-            chat_id=chat_id, text=EMOJI_TEXT, reply_to_message_id=target_msg.message_id
-        )
-        try:
-            bot.delete_message(chat_id, message.message_id)
-        except Exception:
-            pass
-        return
-
-    # بررسی هشتگ‌ها
     if "#" in text_stripped:
         words_after_hash = [
             w.lower() for w in text_stripped.replace("#", " ").split() if w.strip()
         ]
 
+        # اگر کلمه کلیدی جزو استثناها بود، هیچ کاری نکن
         if any(ex in words_after_hash for ex in EXCEPTION_KEYWORDS):
             return
 
+        # ارسال ایموجی به صورت مستقل و بدون ریپلای (فقط در چت اصلی)
         bot.send_message(chat_id=message.chat.id, text=EMOJI_TEXT)
 
 
@@ -221,6 +216,32 @@ def handle_edited_messages(message):
     process_hashtag_logic(message)
 
 
+# --- ۳. حالت دستی با نوشتن کلمه reply (فقط در چت اصلی) ---
+@bot.message_handler(
+    func=lambda m: m.text and m.text.strip().lower() == "reply"
+)
+def handle_manual_reply(message):
+    if not is_main_chat(message):
+        return
+
+    if not message.reply_to_message:
+        return
+
+    target_msg = message.reply_to_message
+    chat_id = message.chat.id
+
+    # ارسال ایموجی‌ها به صورت ریپلای‌شده روی پیام هدف
+    bot.send_message(
+        chat_id=chat_id, text=EMOJI_TEXT, reply_to_message_id=target_msg.message_id
+    )
+
+    # حذف پیام کلمه «reply» ارسال‌شده توسط کاربر برای مرتب ماندن چت
+    try:
+        bot.delete_message(chat_id, message.message_id)
+    except Exception:
+        pass
+
+
 # --- هندلر دستور دستی addbtn ---
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
@@ -230,8 +251,13 @@ def handle_add_button(message):
     if not message.reply_to_message:
         return
 
-    target_msg = message.reply_to_message
+    original_msg_id = message.reply_to_message.message_id
     chat_id = message.chat.id
+
+    message_thread_id = getattr(message.reply_to_message, "message_thread_id", None)
+    state = get_button_state(original_msg_id)
+    if not message_thread_id and state and len(state) > 6:
+        message_thread_id = state[6]
 
     parts = message.text.split(maxsplit=2)
     if len(parts) < 3:
@@ -240,41 +266,68 @@ def handle_add_button(message):
     btn_name = parts[1].strip().lower()
     btn_link = parts[2].strip()
 
-    existing_links = get_buttons_from_db(chat_id, target_msg.message_id)
+    korrektur_l = state[1] if state and state[1] else None
+    grammatik_l = state[2] if state and state[2] else None
+    vokabel_l = state[3] if state and state[3] else None
+    übersetzung_l = state[4] if state and state[4] else None
+    back_l = state[5] if state and len(state) > 5 and state[5] else None
+    bot_emoji_msg_id = state[0] if state and state[0] else None
 
     if btn_name == "übersetzung":
-        existing_links['übersetzung'] = btn_link
+        übersetzung_l = btn_link
     elif btn_name == "korrektur":
-        existing_links['korrektur'] = btn_link
+        korrektur_l = btn_link
     elif btn_name == "vokabel":
-        existing_links['vokabel'] = btn_link
+        vokabel_l = btn_link
     elif btn_name == "grammatik":
-        existing_links['grammatik'] = btn_link
+        grammatik_l = btn_link
     elif btn_name == "back":
-        existing_links['back'] = btn_link
+        back_l = btn_link
     else:
         return
 
     markup = create_dynamic_keyboard(
-        korrektur_link=existing_links.get('korrektur'),
-        grammatik_link=existing_links.get('grammatik'),
-        vokabel_link=existing_links.get('vokabel'),
-        übersetzung_link=existing_links.get('übersetzung'),
-        back_link=existing_links.get('back')
+        korrektur_link=korrektur_l,
+        grammatik_link=grammatik_l,
+        vokabel_link=vokabel_l,
+        übersetzung_link=übersetzung_l,
+        back_link=back_l
     )
 
-    try:
-        current_target_text = get_message_text(target_msg) or EMOJI_TEXT
-        
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=target_msg.message_id,
-            text=current_target_text,
-            reply_markup=markup
-        )
-        save_buttons_to_db(chat_id, target_msg.message_id, existing_links)
-    except Exception as e:
-        print(f"Error editing message: {e}")
+    if bot_emoji_msg_id:
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=bot_emoji_msg_id,
+                text=EMOJI_TEXT,
+                reply_markup=markup
+            )
+        except Exception:
+            kwargs = {"chat_id": chat_id, "text": EMOJI_TEXT, "reply_markup": markup}
+            if message_thread_id:
+                kwargs["message_thread_id"] = message_thread_id
+            
+            new_msg = bot.send_message(**kwargs)
+            bot_emoji_msg_id = new_msg.message_id
+    else:
+        kwargs = {"chat_id": chat_id, "text": EMOJI_TEXT, "reply_markup": markup}
+        if message_thread_id:
+            kwargs["message_thread_id"] = message_thread_id
+            
+        new_msg = bot.send_message(**kwargs)
+        bot_emoji_msg_id = new_msg.message_id
+
+    save_or_update_button_state(
+        original_msg_id=original_msg_id,
+        chat_id=chat_id,
+        bot_emoji_msg_id=bot_emoji_msg_id,
+        korrektur_link=korrektur_l,
+        grammatik_link=grammatik_l,
+        vokabel_link=vokabel_l,
+        übersetzung_link=übersetzung_l,
+        back_link=back_l,
+        message_thread_id=message_thread_id
+    )
 
     try:
         bot.delete_message(chat_id, message.message_id)
@@ -294,7 +347,7 @@ def webhook():
 
 @app.route("/")
 def index():
-    return "Bot is running successfully!", 200
+    return "Bot is running successfully with all components!", 200
 
 
 if __name__ == "__main__":
