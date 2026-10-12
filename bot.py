@@ -24,6 +24,75 @@ ADMIN_IDS = [103743272]
 # کلماتی که ربات نباید برایشان ایموجی خودکار بفرستد
 EXCEPTION_KEYWORDS = ["vokabel", "grammatik", "korrektur"]
 
+# مسیر فایل ذخیره تنظیمات و شمارنده چرخش خوش‌آمدگویی
+SETTINGS_FILE = "welcome_settings.json"
+
+# تنظیمات پیش‌فرضِ اولیه خوشآمدگویی
+DEFAULT_SETTINGS = {
+    "welcome_active": True,
+    "counter": 0,
+}
+
+
+# --- توابع مربوط به تنظیمات خوش‌آمدگویی ---
+def load_welcome_settings():
+    if not os.path.exists(SETTINGS_FILE):
+        save_welcome_settings(DEFAULT_SETTINGS)
+    try:
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return DEFAULT_SETTINGS
+
+
+def save_welcome_settings(settings):
+    with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+        json.dump(settings, f, ensure_ascii=False, indent=4)
+
+
+# متن‌های خوش‌آمدگویی
+GREETING_TEMPLATES = [
+    (
+        "**`✦ ──────────────────────────────────────────────────────── ✦`**\n"
+        "**`  Hallo {name} ⚘, herzlich willkommen in unserer Runde!`**\n"
+        "**`✦ ──────────────────────────────────────────────────────── ✦`**\n\n"
+        "**_Schön, dass du da bist! Hier lernen wir gemeinsam Deutsch. "
+        "Du kannst üben, neue Wörter lernen und auf Deutsch sprechen. Wir freuen"
+        " uns auf dich!_**"
+    ),
+    (
+        "**`✦ ─────────────────────────────────────────── ✦`**\n"
+        "**`  Ein warmes Willkommen an dich, {name} ⚘!`**\n"
+        "**`✦ ─────────────────────────────────────────── ✦`**\n\n"
+        "**_Mach dir keinen Stress beim Lernen. Jeder Fehler hilft dir! "
+        "Nimm dir Zeit, lies mit und sprich einfach auf Deutsch mit uns. Wir"
+        " freuen uns auf dich!_**"
+    ),
+    (
+        "**`✦ ────────────────────────────────────────── ✦`**\n"
+        "**`  Hallo {name} ⚘, toll, dass du hier bist!`**\n"
+        "**`✦ ────────────────────────────────────────── ✦`**\n\n"
+        "**_Jeder Tag ist eine neue Chance zum Üben. Sprich einfach mit den"
+        " anderen auf Deutsch und mach aktiv mit. Zusammen schaffen wir das!"
+        " Wir freuen uns auf dich!_**"
+    ),
+    (
+        "**`✦ ──────────────────────────────────────────────── ✦`**\n"
+        "**`  Schön, dass du zu uns gefunden hast, {name} ⚘!`**\n"
+        "**`✦ ──────────────────────────────────────────────── ✦`**\n\n"
+        "**_Hier zählen nicht perfekte Sätze, sondern das Sprechen. Trau dich"
+        " einfach, sprich frei auf Deutsch und lerne jeden Tag ein bisschen"
+        " mehr. Wir freuen uns auf dich!_**"
+    ),
+    (
+        "**`✦ ───────────────────────────────────────────── ✦`**\n"
+        "**`  Hallo, schön dass du dabei bist, {name} ⚘!`**\n"
+        "**`✦ ───────────────────────────────────────────── ✦`**\n\n"
+        "**_Zusammen macht Deutsch lernen mehr Spaß. Trau dich und sprich"
+        " einfach mit. Wir freuen uns auf dich!_**"
+    ),
+]
+
 
 # --- بررسی اینکه آیا پیام در چت اصلی است یا تاپیک ---
 def is_main_chat(message):
@@ -170,6 +239,63 @@ def create_dynamic_keyboard(
         markup.row(*row_back)
 
     return markup
+
+
+# ==========================================
+# ۰. دستور کنترل خوش‌آمدگویی (/welcome)
+# ==========================================
+@bot.message_handler(commands=["welcome"])
+def handle_welcome_command(message):
+    args = message.text.split()
+    settings = load_welcome_settings()
+
+    if len(args) > 1:
+        action = args[1].lower()
+        if action == "on":
+            settings["welcome_active"] = True
+            save_welcome_settings(settings)
+            bot.reply_to(message, "✅ قابلیت خوشامدگویی با موفقیت **روشن (ON)** شد.")
+            return
+        elif action == "off":
+            settings["welcome_active"] = False
+            save_welcome_settings(settings)
+            bot.reply_to(message, "❌ قابلیت خوشامدگویی با موفقیت **خاموش (OFF)** شد.")
+            return
+
+    status = "روشن (ON)" if settings.get("welcome_active", True) else "خاموش (OFF)"
+    bot.reply_to(
+        message,
+        f"وضعیت فعلی خوشامدگویی: {status}\nبرای تغییر از `/welcome on` یا `/welcome off` استفاده کنید."
+    )
+
+
+# ==========================================
+# ۰.۱. هندلر ورود عضو جدید به گروه
+# ==========================================
+@bot.message_handler(content_types=["new_chat_members"])
+def handle_new_member(message):
+    settings = load_welcome_settings()
+    if not settings.get("welcome_active", True):
+        return
+
+    for new_member in message.new_chat_members:
+        if new_member.is_bot:
+            continue
+
+        raw_name = new_member.first_name
+        if not raw_name or raw_name.strip() in ["", ".", "-", "_"]:
+            user_name = "mein Freund"
+        else:
+            user_name = raw_name.strip()
+
+        counter = settings.get("counter", 0)
+        template = GREETING_TEMPLATES[counter]
+        greeting_text = template.format(name=user_name)
+
+        bot.send_message(message.chat.id, greeting_text, parse_mode="Markdown")
+
+        settings["counter"] = (counter + 1) % len(GREETING_TEMPLATES)
+        save_welcome_settings(settings)
 
 
 # ==========================================
@@ -324,7 +450,6 @@ def handle_delete_button(message):
     übersetzung_l = state[4]
     back_l = state[5] if len(state) > 5 else None
 
-    # صفر کردن لینک دکمه مورد نظر برای حذف
     if btn_name == "übersetzung":
         übersetzung_l = None
     elif btn_name == "korrektur":
@@ -350,7 +475,6 @@ def handle_delete_button(message):
         back_link=back_l
     )
 
-    # ویرایش پیام و حذف کیبورد یا آپدیت آن
     try:
         has_buttons = any([korrektur_l, grammatik_l, vokabel_l, übersetzung_l, back_l])
         bot.edit_message_text(
@@ -362,7 +486,6 @@ def handle_delete_button(message):
     except Exception as e:
         print(f"Error updating message: {e}")
 
-    # آپدیت مستقیم دیتابیس برای اعمال حذف
     conn = sqlite3.connect("bot_database.db")
     cursor = conn.cursor()
     cursor.execute("""
