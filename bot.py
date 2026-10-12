@@ -614,6 +614,31 @@ def index():
     return "Bot is running successfully with all components!", 200
 
 
+# ==========================================
+# 🛑 شروع بخش موقت: دستور تست پیام خوش‌آمدگویی
+# ==========================================
+@bot.message_handler(commands=["testwelcome"])
+def test_welcome_message(message):
+    raw_name = message.from_user.first_name
+    if not raw_name or raw_name.strip() in ["", ".", "-", "_"]:
+        user_name = "mein Freund"
+    else:
+        user_name = raw_name.strip()
+
+    settings = load_welcome_settings()
+    counter = settings.get("counter", 0)
+    template = GREETING_TEMPLATES[counter]
+    greeting_text = template.format(name=user_name)
+
+    bot.send_message(message.chat.id, greeting_text, parse_mode="Markdown")
+
+    settings["counter"] = (counter + 1) % len(GREETING_TEMPLATES)
+    save_welcome_settings(settings)
+# ==========================================
+# 🛑 پایان بخش موقت تست خوش‌آمدگویی
+# ==========================================
+
+
 if __name__ == "__main__":
     WEBHOOK_URL = f"https://my-bot-0jtw.onrender.com/{TOKEN}"
     bot.remove_webhook()
