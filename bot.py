@@ -617,7 +617,7 @@ def index():
 # ==========================================
 # 🛑 شروع بخش موقت: دستور تست پیام خوش‌آمدگویی
 # ==========================================
-@bot.message_handler(commands=["testwelcome"])
+@bot.message_handler(func=lambda message: message.text == "/testwelcome")
 def test_welcome_message(message):
     raw_name = message.from_user.first_name
     if not raw_name or raw_name.strip() in ["", ".", "-", "_"]:
