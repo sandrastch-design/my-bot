@@ -173,7 +173,7 @@ def create_dynamic_keyboard(
 
 
 # ==========================================
-# ۱. هندلر دستور دستی addbtn (اصلاح شده)
+# ۱. هندلر دستور دستی addbtn
 # ==========================================
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
@@ -186,18 +186,15 @@ def handle_add_button(message):
     replied_msg = message.reply_to_message
     chat_id = message.chat.id
 
-    # بررسی هوشمندانه: آیا روی پیام خودِ ربات (ایموجی) ریپلای شده یا پیام کاربر؟
     state = get_button_state(replied_msg.message_id)
     original_msg_id = replied_msg.message_id
 
     if not state:
-        # اگر با original_msg_id پیدا نشد، چک کنیم شاید روی پیام ایموجی ربات ریپلای شده باشد
         bot_state_check = get_state_by_bot_emoji_id(replied_msg.message_id)
         if bot_state_check:
             original_msg_id = bot_state_check[0]
             state = get_button_state(original_msg_id)
 
-    # استخراج thread_id در صورت وجود
     message_thread_id = getattr(replied_msg, "message_thread_id", None)
     if not message_thread_id and state and len(state) > 6 and state[6]:
         message_thread_id = state[6]
@@ -279,7 +276,111 @@ def handle_add_button(message):
 
 
 # ==========================================
-# ۲. هندلر دستور reply 
+# ۲. هندلر دستور حذف دستی دکمه (delbtn)
+# ==========================================
+@bot.message_handler(commands=["delbtn", "removebtn"])
+def handle_delete_button(message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+
+    if not message.reply_to_message:
+        return
+
+    replied_msg = message.reply_to_message
+    chat_id = message.chat.id
+
+    state = get_button_state(replied_msg.message_id)
+    original_msg_id = replied_msg.message_id
+
+    if not state:
+        bot_state_check = get_state_by_bot_emoji_id(replied_msg.message_id)
+        if bot_state_check:
+            original_msg_id = bot_state_check[0]
+            state = get_button_state(original_msg_id)
+
+    if not state:
+        try:
+            bot.delete_message(chat_id, message.message_id)
+        except Exception:
+            pass
+        return
+
+    message_thread_id = state[6] if len(state) > 6 and state[6] else getattr(replied_msg, "message_thread_id", None)
+
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        try:
+            bot.delete_message(chat_id, message.message_id)
+        except Exception:
+            pass
+        return
+
+    btn_name = parts[1].strip().lower()
+
+    bot_emoji_msg_id = state[0]
+    korrektur_l = state[1]
+    grammatik_l = state[2]
+    vokabel_l = state[3]
+    übersetzung_l = state[4]
+    back_l = state[5] if len(state) > 5 else None
+
+    # صفر کردن لینک دکمه مورد نظر برای حذف
+    if btn_name == "übersetzung":
+        übersetzung_l = None
+    elif btn_name == "korrektur":
+        korrektur_l = None
+    elif btn_name == "vokabel":
+        vokabel_l = None
+    elif btn_name == "grammatik":
+        grammatik_l = None
+    elif btn_name == "back":
+        back_l = None
+    else:
+        try:
+            bot.delete_message(chat_id, message.message_id)
+        except Exception:
+            pass
+        return
+
+    markup = create_dynamic_keyboard(
+        korrektur_link=korrektur_l,
+        grammatik_link=grammatik_l,
+        vokabel_link=vokabel_l,
+        übersetzung_link=übersetzung_l,
+        back_link=back_l
+    )
+
+    # ویرایش پیام و حذف کیبورد یا آپدیت آن
+    try:
+        has_buttons = any([korrektur_l, grammatik_l, vokabel_l, übersetzung_l, back_l])
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=bot_emoji_msg_id,
+            text=EMOJI_TEXT,
+            reply_markup=markup if has_buttons else None
+        )
+    except Exception as e:
+        print(f"Error updating message: {e}")
+
+    # آپدیت مستقیم دیتابیس برای اعمال حذف
+    conn = sqlite3.connect("bot_database.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE feedbacks 
+        SET korrektur_link = ?, grammatik_link = ?, vokabel_link = ?, übersetzung_link = ?, back_link = ?
+        WHERE original_msg_id = ?
+    """, (korrektur_l, grammatik_l, vokabel_l, übersetzung_l, back_l, original_msg_id))
+    conn.commit()
+    conn.close()
+
+    try:
+        bot.delete_message(chat_id, message.message_id)
+    except Exception:
+        pass
+
+
+# ==========================================
+# ۳. هندلر دستور reply 
 # ==========================================
 @bot.message_handler(
     func=lambda m: m.text and m.text.strip().lower() == "reply",
@@ -299,7 +400,6 @@ def handle_manual_reply(message):
         chat_id=chat_id, text=EMOJI_TEXT, reply_to_message_id=target_msg.message_id
     )
     
-    # ذخیره خودکار پیام ایموجی اولیه در دیتابیس برای اینکه بعداً با /addbtn بشه راحت روش کار کرد
     save_or_update_button_state(
         original_msg_id=target_msg.message_id,
         chat_id=chat_id,
@@ -333,7 +433,6 @@ def process_hashtag_logic(message):
 
         sent_msg = bot.send_message(chat_id=message.chat.id, text=EMOJI_TEXT)
         
-        # ذخیره در دیتابیس هنگام ارسال خودکار ایموجی هشتگ
         save_or_update_button_state(
             original_msg_id=message.message_id,
             chat_id=message.chat.id,
@@ -343,7 +442,7 @@ def process_hashtag_logic(message):
 
 
 # ==========================================
-# ۳. هندلر عمومی برای بقیه پیام‌ها و هشتگ‌ها
+# ۴. هندلر عمومی برای بقیه پیام‌ها و هشتگ‌ها
 # ==========================================
 @bot.message_handler(
     func=lambda m: True,
