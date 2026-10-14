@@ -85,7 +85,7 @@ GREETING_TEMPLATES = [
         "**`✦ ─────────────────── `**\n\n"
         "**_Hier zählen nicht perfekte Sätze, sondern das Sprechen. Trau dich"
         " einfach, sprich frei auf Deutsch und lerne jeden Tag ein bisschen"
-        " mehr. Wir freuen uns auf dich! ♡_**\n"
+        " mehr. Wir freuen uns auf dich! ♡_**\n\n"
         "ㅤ"
     ),
     (
