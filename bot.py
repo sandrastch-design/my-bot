@@ -14,10 +14,10 @@ bot = telebot.TeleBot(TOKEN)
 EMOJI_TEXT = "⚜"
 
 # --- تنظیمات تاپیک‌ها و ادمین‌ها ---
-TOPIC_KORREKTUR = 191  # شناسه تاپیک کرکتور
-TOPIC_GRAMMATIK = 188  # شناسه تاپیک گرامر
-TOPIC_VOKABEL = 189  # شناسه تاپیک لغت
-TOPIC_ÜBERSETZUNG = 334  # شناسه تاپیک ترجمه
+TOPIC_KORREKTUR = 198  # شناسه تاپیک کرکتور
+TOPIC_GRAMMATIK = 132  # شناسه تاپیک گرامر
+TOPIC_VOKABEL = 133  # شناسه تاپیک لغت
+TOPIC_ÜBERSETZUNG = 131  # شناسه تاپیک ترجمه
 
 ADMIN_IDS = [103743272]
 
@@ -85,7 +85,7 @@ GREETING_TEMPLATES = [
         "**`✦ ─────────────────── `**\n\n"
         "**_Hier zählen nicht perfekte Sätze, sondern das Sprechen. Trau dich"
         " einfach, sprich frei auf Deutsch und lerne jeden Tag ein bisschen"
-        " mehr. Wir freuen uns auf dich! ♡_**\n\n"
+        " mehr. Wir freuen uns auf dich! ♡_**\n"
         "ㅤ"
     ),
     (
