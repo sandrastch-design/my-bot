@@ -11,7 +11,7 @@ TOKEN = "8879831216:AAGVuAnAH7SgDwniBNGxd0jF_grYUgPZm0o"
 bot = telebot.TeleBot(TOKEN)
 
 # متن پیام ربات شامل ایموجی‌ها
-EMOJI_TEXT = "⚜"
+EMOJI_TEXT = "⚜" 
 
 # --- تنظیمات تاپیک‌ها و ادمین‌ها ---
 TOPIC_KORREKTUR = 198  # شناسه تاپیک کرکتور
