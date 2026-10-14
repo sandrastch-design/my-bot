@@ -59,8 +59,7 @@ GREETING_TEMPLATES = [
         "**_Schön, dass du da bist! Hier lernen wir gemeinsam Deutsch. "
         "Du kannst üben, neue Wörter lernen und auf Deutsch sprechen. Wir freuen"
         " uns auf dich! ♡_**\n\n"
-         "<code> </code>\n"
-         "<code> </code>"
+        "ㅤ"
     ),
     (
         "**` ─────────────────── ✦`**\n"
@@ -69,8 +68,6 @@ GREETING_TEMPLATES = [
         "**_Mach dir keinen Stress beim Lernen. Jeder Fehler hilft dir! "
         "Nimm dir Zeit, lies mit und sprich einfach auf Deutsch mit uns. Wir"
         " freuen uns auf dich! ♡_**\n\n"
-        "<code> </code>\n" 
-         "<code> </code>"  
     ),
     (
         "**` ─────────────────── ✦`**\n"
@@ -79,8 +76,6 @@ GREETING_TEMPLATES = [
         "**_Jeder Tag ist eine neue Chance zum Üben. Sprich einfach mit den"
         " anderen auf Deutsch und mach aktiv mit. Zusammen schaffen wir das!"
         " Wir freuen uns auf dich! ♡_**\n\n"
-        "<code> </code>\n"
-        "<code> </code>"
     ),
     (
         "**` ─────────────────── ✦`**\n"
@@ -89,8 +84,6 @@ GREETING_TEMPLATES = [
         "**_Hier zählen nicht perfekte Sätze, sondern das Sprechen. Trau dich"
         " einfach, sprich frei auf Deutsch und lerne jeden Tag ein bisschen"
         " mehr. Wir freuen uns auf dich! ♡_**\n\n"
-        "<code> </code>\n"
-        "<code> </code>"
     ),
     (
         "**` ─────────────────── ✦`**\n"
@@ -98,8 +91,6 @@ GREETING_TEMPLATES = [
         "**`✦ ─────────────────── `**\n\n"
         "**_Zusammen macht Deutsch lernen mehr Spaß. Trau dich und sprich"
         " einfach mit. Wir freuen uns auf dich! ♡_**\n\n"
-        "<code> </code>\n"
-        "<code> </code>"
     ),
 ]
 
