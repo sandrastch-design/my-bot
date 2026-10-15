@@ -85,7 +85,7 @@ GREETING_TEMPLATES = [
         "**`✦ ─────────────────── `**\n\n"
         "**_Hier zählen nicht perfekte Sätze, sondern das Sprechen. Trau dich"
         " einfach, sprich frei auf Deutsch und lerne jeden Tag ein bisschen"
-        " mehr. Wir freuen uns auf dich! ♡_**\n\n"
+        " mehr. Wir freuen uns auf dich! ♡_**\n"
         "ㅤ"
     ),
     (
@@ -209,13 +209,13 @@ def create_dynamic_keyboard(
 
     all_main_buttons = []
     if übersetzung_link:
-        all_main_buttons.append(types.InlineKeyboardButton("📝 übersetzung", url=übersetzung_link))
+        all_main_buttons.append(types.InlineKeyboardButton("📝 Übersetzung", url=übersetzung_link))
     if korrektur_link:
-        all_main_buttons.append(types.InlineKeyboardButton("🔍 korrektur", url=korrektur_link))
+        all_main_buttons.append(types.InlineKeyboardButton("🔍 Korrektur", url=korrektur_link))
     if vokabel_link:
-        all_main_buttons.append(types.InlineKeyboardButton("📁 vokabel", url=vokabel_link))
+        all_main_buttons.append(types.InlineKeyboardButton("📁 Vokabel", url=vokabel_link))
     if grammatik_link:
-        all_main_buttons.append(types.InlineKeyboardButton("✍ grammatik", url=grammatik_link))
+        all_main_buttons.append(types.InlineKeyboardButton("✍ Grammatik", url=grammatik_link))
 
     total_main = len(all_main_buttons)
 
