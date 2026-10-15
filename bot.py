@@ -234,7 +234,7 @@ def create_dynamic_keyboard(
         row2.append(all_main_buttons[3])
 
     if back_link:
-        row_back.append(types.InlineKeyboardButton("⬅️ ㅤDeutsch sprechenㅤ", url=back_link))
+        row_back.append(types.InlineKeyboardButton("⬅️ ​ Deutsch sprechenㅤ", url=back_link))
 
     if row1:
         markup.row(*row1)
