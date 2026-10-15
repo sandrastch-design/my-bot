@@ -209,13 +209,13 @@ def create_dynamic_keyboard(
 
     all_main_buttons = []
     if übersetzung_link:
-        all_main_buttons.append(types.InlineKeyboardButton("📝 Übersetzung ", url=übersetzung_link))
+        all_main_buttons.append(types.InlineKeyboardButton("📝 Übersetzung"ㅤ"", url=übersetzung_link))
     if korrektur_link:
-        all_main_buttons.append(types.InlineKeyboardButton("🔍 Korrektur ", url=korrektur_link))
+        all_main_buttons.append(types.InlineKeyboardButton("🔍 Korrektur"ㅤ"", url=korrektur_link))
     if vokabel_link:
-        all_main_buttons.append(types.InlineKeyboardButton("📁 Vokabel ", url=vokabel_link))
+        all_main_buttons.append(types.InlineKeyboardButton("📁 Vokabel"ㅤ"", url=vokabel_link))
     if grammatik_link:
-        all_main_buttons.append(types.InlineKeyboardButton("✍ Grammatik ", url=grammatik_link))
+        all_main_buttons.append(types.InlineKeyboardButton("✍ Grammatik"ㅤ"", url=grammatik_link))
 
     total_main = len(all_main_buttons)
 
