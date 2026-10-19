@@ -18,6 +18,7 @@ TOPIC_KORREKTUR = 198  # شناسه تاپیک کرکتور
 TOPIC_GRAMMATIK = 132  # شناسه تاپیک گرامر
 TOPIC_VOKABEL = 133  # شناسه تاپیک لغت
 TOPIC_ÜBERSETZUNG = 131  # شناسه تاپیک ترجمه
+TOPIC_CHATTEN = 896  # شناسه تاپیک جدید چتن و پلودان (Chatten und Plaudern)
 
 ADMIN_IDS = [103743272]
 
@@ -99,11 +100,13 @@ GREETING_TEMPLATES = [
 ]
 
 
-# --- بررسی اینکه آیا پیام در چت اصلی است یا تاپیک ---
-def is_main_chat(message):
-    if getattr(message, "message_thread_id", None):
-        return False
-    return True
+# --- بررسی اینکه آیا پیام در چت اصلی است یا تاپیک‌ها ---
+def is_main_or_chatten_chat(message):
+    thread_id = getattr(message, "message_thread_id", None)
+    # اگر پیام در چت اصلی باشد یا داخل تاپیک چتن و پلودان باشد
+    if not thread_id or thread_id == TOPIC_CHATTEN:
+        return True
+    return False
 
 
 # --- استخراج امن متن از پیام (متن یا کپشن) ---
@@ -234,7 +237,16 @@ def create_dynamic_keyboard(
         row2.append(all_main_buttons[3])
 
     if back_link:
-        row_back.append(types.InlineKeyboardButton("⬅️ ​ Deutsch sprechenㅤ", url=back_link))
+        # تشخیص نوع دکمه برگشت بر اساس لینک یا مقدار ذخیره‌شده
+        if "back_type_chatten" in back_link:
+            clean_url = back_link.replace("back_type_chatten", "").strip()
+            row_back.append(types.InlineKeyboardButton("⬅️ Chatten & Plaudernㅤ", url=clean_url))
+        elif "back_type_deutsch" in back_link:
+            clean_url = back_link.replace("back_type_deutsch", "").strip()
+            row_back.append(types.InlineKeyboardButton("⬅️ Deutsch sprechenㅤ", url=clean_url))
+        else:
+            # حالت پیش‌فرض سازگار با کدهای قبلی
+            row_back.append(types.InlineKeyboardButton("⬅️ Deutsch sprechenㅤ", url=back_link))
 
     if row1:
         markup.row(*row1)
@@ -304,7 +316,7 @@ def handle_new_member(message):
 
 
 # ==========================================
-# ۱. هندلر دستور دستی addbtn
+# ۱. هندلر دستور دستی addbtn (پشتیبانی از back 1 و back 2)
 # ==========================================
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
@@ -353,7 +365,24 @@ def handle_add_button(message):
     elif btn_name == "grammatik":
         grammatik_l = btn_link
     elif btn_name == "back":
-        back_l = btn_link
+        # بررسی اینکه آیا کاربر back 1 خواسته یا back 2 (یا بدون عدد به طور پیش‌فرض deutsch)
+        sub_parts = message.text.split(maxsplit=3)
+        if len(sub_parts) >= 3 and sub_parts[2].isdigit():
+            # حالت مثل addbtn back 1 لینک
+            back_num = sub_parts[2]
+            actual_link = sub_parts[3].strip() if len(sub_parts) > 3 else ""
+            if back_num == "1":
+                back_l = "back_type_deutsch " + actual_link
+            elif back_num == "2":
+                back_l = "back_type_chatten " + actual_link
+        else:
+            # حالت قدیمی یا بدون عدد
+            if btn_link.startswith("1 "):
+                back_l = "back_type_deutsch " + btn_link[2:].strip()
+            elif btn_link.startswith("2 "):
+                back_l = "back_type_chatten " + btn_link[2:].strip()
+            else:
+                back_l = "back_type_deutsch " + btn_link
     else:
         return
 
@@ -515,7 +544,7 @@ def handle_delete_button(message):
     content_types=["text", "audio", "voice", "photo", "document", "video", "sticker"]
 )
 def handle_manual_reply(message):
-    if not is_main_chat(message):
+    if not is_main_or_chatten_chat(message):
         return
 
     if not message.reply_to_message:
@@ -524,15 +553,22 @@ def handle_manual_reply(message):
     target_msg = message.reply_to_message
     chat_id = message.chat.id
 
-    sent_msg = bot.send_message(
-        chat_id=chat_id, text=EMOJI_TEXT, reply_to_message_id=target_msg.message_id
-    )
+    kwargs = {
+        "chat_id": chat_id,
+        "text": EMOJI_TEXT,
+        "reply_to_message_id": target_msg.message_id
+    }
+    thread_id = getattr(target_msg, "message_thread_id", None)
+    if thread_id:
+        kwargs["message_thread_id"] = thread_id
+
+    sent_msg = bot.send_message(**kwargs)
     
     save_or_update_button_state(
         original_msg_id=target_msg.message_id,
         chat_id=chat_id,
         bot_emoji_msg_id=sent_msg.message_id,
-        message_thread_id=getattr(target_msg, "message_thread_id", None)
+        message_thread_id=thread_id
     )
 
     try:
@@ -543,7 +579,7 @@ def handle_manual_reply(message):
 
 # --- منطق تشخیص هشتگ ---
 def process_hashtag_logic(message):
-    if not is_main_chat(message):
+    if not is_main_or_chatten_chat(message):
         return
 
     text = get_message_text(message)
@@ -559,13 +595,18 @@ def process_hashtag_logic(message):
         if any(ex in words_after_hash for ex in EXCEPTION_KEYWORDS):
             return
 
-        sent_msg = bot.send_message(chat_id=message.chat.id, text=EMOJI_TEXT)
+        kwargs = {"chat_id": message.chat.id, "text": EMOJI_TEXT}
+        thread_id = getattr(message, "message_thread_id", None)
+        if thread_id:
+            kwargs["message_thread_id"] = thread_id
+
+        sent_msg = bot.send_message(**kwargs)
         
         save_or_update_button_state(
             original_msg_id=message.message_id,
             chat_id=message.chat.id,
             bot_emoji_msg_id=sent_msg.message_id,
-            message_thread_id=getattr(message, "message_thread_id", None)
+            message_thread_id=thread_id
         )
 
 
