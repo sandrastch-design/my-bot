@@ -492,7 +492,7 @@ def handle_delete_button(message):
         vokabel_l = None
     elif btn_name == "grammatik":
         grammatik_l = None
-    elif btn_name.startswith("back"):
+    elif btn_name == "back":
         back_l = None
     else:
         try:
