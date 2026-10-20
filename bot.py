@@ -243,10 +243,10 @@ def create_dynamic_keyboard(
             row_back.append(types.InlineKeyboardButton("⬅️​ ​ Chatten & Plaudernㅤ", url=clean_url))
         elif "back_type_deutsch" in back_link:
             clean_url = back_link.replace("back_type_deutsch", "").strip()
-            row_back.append(types.InlineKeyboardButton("⬅️ ​ Deutsch sprechenㅤ", url=clean_url))
+            row_back.append(types.InlineKeyboardButton("⬅️ ​ Hören & Sprechenㅤ", url=clean_url))
         else:
             # حالت پیش‌فرض سازگار با کدهای قبلی
-            row_back.append(types.InlineKeyboardButton("⬅️ ​ Deutsch sprechenㅤ", url=back_link))
+            row_back.append(types.InlineKeyboardButton("⬅️ ​ Hören & Sprechenㅤ", url=back_link))
 
     if row1:
         markup.row(*row1)
