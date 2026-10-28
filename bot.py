@@ -103,7 +103,6 @@ GREETING_TEMPLATES = [
 # --- بررسی اینکه آیا پیام در چت اصلی است یا تاپیک‌ها ---
 def is_main_or_chatten_chat(message):
     thread_id = getattr(message, "message_thread_id", None)
-    # اگر پیام در چت اصلی باشد یا داخل تاپیک چتن و پلودان باشد
     if not thread_id or thread_id == TOPIC_CHATTEN:
         return True
     return False
@@ -237,7 +236,6 @@ def create_dynamic_keyboard(
         row2.append(all_main_buttons[3])
 
     if back_link:
-        # تشخیص نوع دکمه برگشت بر اساس لینک یا مقدار ذخیره‌شده
         if "back_type_chatten" in back_link:
             clean_url = back_link.replace("back_type_chatten", "").strip()
             row_back.append(types.InlineKeyboardButton("⬅️​ ​ Chatten & Plaudernㅤ", url=clean_url))
@@ -245,7 +243,6 @@ def create_dynamic_keyboard(
             clean_url = back_link.replace("back_type_deutsch", "").strip()
             row_back.append(types.InlineKeyboardButton("⬅️ ​ Hören & Sprechenㅤ", url=clean_url))
         else:
-            # حالت پیش‌فرض سازگار با کدهای قبلی
             row_back.append(types.InlineKeyboardButton("⬅️ ​ Hören & Sprechenㅤ", url=back_link))
 
     if row1:
@@ -316,7 +313,7 @@ def handle_new_member(message):
 
 
 # ==========================================
-# ۱. هندلر دستور دستی addbtn (پشتیبانی از back 1 و back 2)
+# ۱. هندلر دستور دستی addbtn
 # ==========================================
 @bot.message_handler(commands=["addbtn"])
 def handle_add_button(message):
@@ -365,10 +362,8 @@ def handle_add_button(message):
     elif btn_name == "grammatik":
         grammatik_l = btn_link
     elif btn_name == "back":
-        # بررسی اینکه آیا کاربر back 1 خواسته یا back 2 (یا بدون عدد به طور پیش‌فرض deutsch)
         sub_parts = message.text.split(maxsplit=3)
         if len(sub_parts) >= 3 and sub_parts[2].isdigit():
-            # حالت مثل addbtn back 1 لینک
             back_num = sub_parts[2]
             actual_link = sub_parts[3].strip() if len(sub_parts) > 3 else ""
             if back_num == "1":
@@ -376,7 +371,6 @@ def handle_add_button(message):
             elif back_num == "2":
                 back_l = "back_type_chatten " + actual_link
         else:
-            # حالت قدیمی یا بدون عدد
             if btn_link.startswith("1 "):
                 back_l = "back_type_deutsch " + btn_link[2:].strip()
             elif btn_link.startswith("2 "):
@@ -577,6 +571,57 @@ def handle_manual_reply(message):
         pass
 
 
+# ==========================================
+# ۴. قابلیت جدید: دستور readbtn و هندلر آن
+# ==========================================
+@bot.message_handler(commands=["readbtn"])
+def handle_create_read_button(message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+
+    chat_id = message.chat.id
+    thread_id = getattr(message, "message_thread_id", None)
+
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("🕯️📖 Gelernt & Verstanden", callback_data="notify_admin_read"))
+
+    kwargs = {
+        "chat_id": chat_id,
+        "text": "⚜ Wenn du alles gelernt hast, klick bitte auf den Button unten!",
+        "reply_markup": markup
+    }
+    
+    if thread_id:
+        kwargs["message_thread_id"] = thread_id
+
+    bot.send_message(**kwargs)
+
+    try:
+        bot.delete_message(chat_id, message.message_id)
+    except Exception:
+        pass
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "notify_admin_read")
+def handle_read_button_click(call):
+    user = call.from_user
+    user_identifier = f"@{user.username}" if user.username else user.first_name
+    
+    # متن گزارش خلاصه و مرتب
+    notification_text = f"📢 [{user_identifier}](tg://user?id={user.id}) مطالب را خواند."
+
+    try:
+        bot.send_message(
+            chat_id=ADMIN_IDS[0], 
+            text=notification_text,
+            parse_mode="Markdown"
+        )
+        bot.answer_callback_query(call.id, "♡ Danke schön! Dein Lehrer wurde informiert.", show_alert=True)
+    except Exception as e:
+        print(f"Error notifying admin: {e}")
+        bot.answer_callback_query(call.id, "❌ خطایی رخ داد.", show_alert=True)
+
+
 # --- منطق تشخیص هشتگ ---
 def process_hashtag_logic(message):
     if not is_main_or_chatten_chat(message):
@@ -611,7 +656,7 @@ def process_hashtag_logic(message):
 
 
 # ==========================================
-# ۴. هندلر عمومی برای بقیه پیام‌ها و هشتگ‌ها
+# ۵. هندلر عمومی برای بقیه پیام‌ها و هشتگ‌ها
 # ==========================================
 @bot.message_handler(
     func=lambda m: True,
