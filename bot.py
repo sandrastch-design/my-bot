@@ -589,8 +589,7 @@ def handle_create_read_button(message):
         "chat_id": chat_id,
         "text": "⚜ Wenn du alles gelernt hast, klick bitte auf den Button unten!",
         "reply_markup": markup,
-        "reply_to_message_id": message.message_id,
-        "quote": True    
+        "reply_to_message_id": message.message_id    
     }
     
     if thread_id:
