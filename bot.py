@@ -582,12 +582,16 @@ def handle_create_read_button(message):
     chat_id = message.chat.id
     thread_id = getattr(message, "message_thread_id", None)
 
+    # ساخت دکمه شیشه‌ای
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("🕯️📖 Gelernt & Verstanden", callback_data="notify_admin_read"))
 
+    # لینک مستقیم عکسی که آپلود کردید
+    PHOTO_URL = "https://i.postimg.cc/C5PB5STk/20261028-100531.jpg"  
+
     kwargs = {
         "chat_id": chat_id,
-        "text": "⚜ Wenn du alles gelernt hast, klick bitte auf den Button unten!",
+        "photo": PHOTO_URL,
         "reply_markup": markup,
         "reply_to_message_id": message.message_id    
     }
@@ -595,14 +599,15 @@ def handle_create_read_button(message):
     if thread_id:
         kwargs["message_thread_id"] = thread_id
 
-    bot.send_message(**kwargs)
+    # ارسال عکس بدون هیچ کپشن یا متنی همراه با دکمه شیشه‌ای
+    bot.send_photo(**kwargs)
 
     try:
         bot.delete_message(chat_id, message.message_id)
     except Exception:
         pass
 
-
+    
 @bot.callback_query_handler(func=lambda call: call.data == "notify_admin_read")
 def handle_read_button_click(call):
     user = call.from_user
