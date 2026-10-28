@@ -584,10 +584,10 @@ def handle_create_read_button(message):
 
     # ساخت دکمه شیشه‌ای
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🕯️📖 Gelernt & Verstanden", callback_data="notify_admin_read"))
+    markup.add(types.InlineKeyboardButton("📖 ​ Gelernt & Verstanden", callback_data="notify_admin_read"))
 
     # لینک مستقیم عکسی که آپلود کردید
-    PHOTO_URL = "https://i.postimg.cc/C5PB5STk/20261028-100531.jpg"  
+    PHOTO_URL = "https://i.postimg.cc/5N16vfB2/20261028-022743.jpg"  
 
     kwargs = {
         "chat_id": chat_id,
@@ -622,7 +622,7 @@ def handle_read_button_click(call):
             text=notification_text,
             parse_mode="Markdown"
         )
-        bot.answer_callback_query(call.id, "♡ Danke schön! Dein Lehrer wurde informiert.", show_alert=True)
+        bot.answer_callback_query(call.id, "♡ Vielen Dank! Dein Lehrer wurde informiert.", show_alert=True)
     except Exception as e:
         print(f"Error notifying admin: {e}")
         bot.answer_callback_query(call.id, "❌ خطایی رخ داد.", show_alert=True)
